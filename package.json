@@ -1,0 +1,11 @@
+{
+  "name": "investibet",
+  "private": true,
+  "packageManager": "pnpm@9.0.0",
+  "scripts": {
+    "dev:web": "pnpm --filter @investibet/web dev",
+    "dev:engine": "pnpm --filter @investibet/engine dev",
+    "build": "pnpm -r build",
+    "test": "pnpm --filter @investibet/core test"
+  }
+}
