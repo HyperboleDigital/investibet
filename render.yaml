@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: investibet-engine
+    runtime: node
+    plan: starter
+    rootDir: .
+    buildCommand: corepack enable && pnpm install --frozen-lockfile=false
+    startCommand: pnpm --filter @investibet/engine start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_VERSION
+        value: "20"
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_KEY
+        sync: false
+      - key: ODDS_API_KEY
+        sync: false
+      - key: ENABLE_PROPS
+        value: "false"
