@@ -40,7 +40,7 @@ function useData(session: Session | null) {
       sb.from('pool_config').select('pot').eq('month', month()).maybeSingle(),
       sb.from('brokerage_connections').select('provider, connected').eq('user_id', session.user.id).maybeSingle(),
     ]);
-    setGames(g.data ?? []); setStocks(s.data ?? []); setPrices(Object.fromEntries((pr.data ?? []).map(x => [x.ticker, Number(x.price)])));
+    setGames(g.data ?? []); setStocks(s.data ?? []); setPrices(Object.fromEntries((p.data ?? []).map(x => [x.ticker, Number(x.price)])));
     setProfile(pr.error ? null : (pr.data as Profile)); setPicks((pk.data ?? []) as Pick[]); setLb((l.data ?? []) as LB[]); setPot(Number(pc.data?.pot ?? 100)); setBroker(bc.data as Broker);
     const ids = (g.data ?? []).map(x => x.id);
     if (ids.length) { const ln = await sb.from('lines').select('game_id, market, selection, point, price').in('game_id', ids.slice(0, 300)); setLines((ln.data ?? []) as Line[]); }
