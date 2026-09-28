@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, useCallback } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { sb, ENABLE_PROPS } from './lib/supabase';
+import Symbol from './Symbol';
 import { implied, basePoints, profit, potSplit, counterfactualDelta, project, marketOpen } from '@investibet/core';
 
 /* ---------- types ---------- */
@@ -18,7 +19,6 @@ const oddsTxt = (o: number) => (o > 0 ? '+' : '') + o;
 const pt = (p: number | null) => (p == null ? '' : (p > 0 ? '+' : '') + p);
 const TIERS = ['Favorites', 'Value', 'Longshots'];
 const LEAGUES = ['All', 'NFL', 'NCAAF', 'NBA', 'NCAAB', 'MLB', 'NHL'];
-const MARKETS: [string, string][] = [['h2h', 'Moneyline'], ['spreads', 'Spread'], ['totals', 'Total']];
 const BROKERS = [['webull', 'Webull'], ['public', 'Public'], ['moomoo', 'Moomoo']];
 const month = () => new Date().toISOString().slice(0, 7);
 
@@ -97,7 +97,7 @@ function Shell({ session }: { session: Session }) {
     {tab === 'cup' && <Cup d={d} uid={session.user.id} />}
     {tab === 'home' && <Home d={d} gm={gm} say={say} onBroker={() => setBrokerOpen(true)} />}
     <nav>
-      {([['board', 'Lines'], ['picks', 'Picks'], ['cup', 'Cup'], ['home', 'Home']] as const).map(([k, l]) => <button key={k} className={tab === k ? 'on' : ''} onClick={() => { setTab(k); scrollTo(0, 0); }}><Icon k={k} />{l}</button>)}
+      {([['board', 'Lines', 'lines'], ['picks', 'Picks', 'picks'], ['cup', 'Cup', 'trophy'], ['home', 'Home', 'home']] as const).map(([k, l, ic]) => <button key={k} className={tab === k ? 'on' : ''} onClick={() => { setTab(k); scrollTo(0, 0); }}><Symbol name={ic} size={24} />{l}</button>)}
     </nav>
     <button className="fb" onClick={async () => { const t = prompt('What sucked? Be blunt.'); if (!t) return; await sb.from('feedback').insert({ user_id: session.user.id, text: t.slice(0, 500), screen: tab }); say('Sent. Thanks.'); }}>What sucked?</button>
     <div className={'toast ' + (toast ? 'on' : '')}>{toast}</div>
@@ -107,18 +107,19 @@ function Shell({ session }: { session: Session }) {
   </>;
 }
 
-function Icon({ k }: { k: string }) {
-  const p = { board: 'M3 4h18v16H3zM3 10h18M9 4v16', picks: 'M4 6h16v12H4zM8 10h8M8 14h5', cup: 'M8 21h8M12 17v4M6 4h12v4a6 6 0 0 1-12 0zM6 6H3a3 3 0 0 0 3 3M18 6h3a3 3 0 0 1-3 3', home: 'M3 12l9-8 9 8M5 10v10h14V10' }[k];
-  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d={p} /></svg>;
-}
-
 /* ---------- board ---------- */
+const MKS: [string, string][] = [['h2h', 'ML'], ['spreads', 'Spread'], ['totals', 'Total']];
+const LEAGUE_ICONS: Record<string, string> = { All: 'sportscourt', NFL: 'football', NCAAF: 'football', NBA: 'basketball', NCAAB: 'basketball', MLB: 'baseball', NHL: 'puck' };
+const shortName = (t: string) => t.split(' ').slice(-1)[0];
+const spoken = (n: number) => (n > 0 ? 'plus ' : 'minus ') + Math.abs(n);
+
 function Board({ d, gm, onPick }: { d: ReturnType<typeof useData>; gm: Record<string, Game>; onPick: (g: Game, l: Line) => void }) {
-  const [league, setLeague] = useState('All'); const [market, setMarket] = useState('h2h'); const [propsFor, setPropsFor] = useState<string | null>(null); const [propLines, setPropLines] = useState<Line[]>([]);
+  const [league, setLeague] = useState('All'); const [q, setQ] = useState(''); const [propsFor, setPropsFor] = useState<string | null>(null); const [propLines, setPropLines] = useState<Line[]>([]);
   const now = Date.now();
-  const list = d.games.filter(g => !g.completed && new Date(g.commence_time).getTime() > now - 4 * 3600e3 && (league === 'All' || g.league === league)).slice(0, 60);
-  const lineFor = (g: Game, sel: string) => d.lines.find(l => l.game_id === g.id && l.market === market && l.selection === sel);
-  const mine = (g: Game) => d.picks.filter(p => p.game_id === g.id && p.market === market);
+  const query = q.trim().toLowerCase();
+  const upcoming = d.games.filter(g => !g.completed && new Date(g.commence_time).getTime() > now - 4 * 3600e3);
+  const list = (query ? upcoming.filter(g => `${g.away} ${g.home} ${g.league}`.toLowerCase().includes(query)) : upcoming.filter(g => league === 'All' || g.league === league)).slice(0, 60);
+  const lineFor = (g: Game, market: string, sel: string) => d.lines.find(l => l.game_id === g.id && l.market === market && l.selection === sel);
   const openProps = async (g: Game) => {
     if (propsFor === g.id) return setPropsFor(null);
     setPropsFor(g.id); setPropLines([]);
@@ -129,21 +130,36 @@ function Board({ d, gm, onPick }: { d: ReturnType<typeof useData>; gm: Record<st
   const weekStaked = d.picks.filter(p => gm[p.game_id] && sameWeek(gm[p.game_id].commence_time)).reduce((s, p) => s + Number(p.stake), 0);
   return <section className="view">
     <div className="row"><h2 style={{ fontSize: 22 }}>Lines</h2><span className="small">{d.profile?.weekly_cap ? `${fmt0(weekStaked)} of ${fmt0(Number(d.profile.weekly_cap))} this week` : `${fmt0(weekStaked)} staked this week`}</span></div>
-    <div className="chips">{LEAGUES.map(l => <button key={l} className={'chip ' + (league === l ? 'on' : '')} onClick={() => setLeague(l)}>{l}</button>)}</div>
-    <div className="seg">{MARKETS.map(([k, l]) => <button key={k} className={market === k ? 'on' : ''} onClick={() => setMarket(k)}>{l}</button>)}</div>
-    {!list.length && <div className="card"><div style={{ fontWeight: 700 }}>No lines yet</div><p className="hint" style={{ margin: '6px 0 0' }}>Lines refresh every few hours. If this is a fresh install, the engine is still pulling the first slate.</p></div>}
+    <div className="chips">{LEAGUES.map(l => <button key={l} className={'chip ' + (league === l && !query ? 'on' : '')} aria-pressed={league === l && !query} onClick={() => { setLeague(l); setQ(''); }}><Symbol name={LEAGUE_ICONS[l]} size={15} />{l}</button>)}</div>
+    <div className="searchbar"><Symbol name="magnifyingglass" size={16} /><input className="search" placeholder="Search team or matchup" aria-label="Search team or matchup" value={q} onChange={e => setQ(e.target.value)} /></div>
+    {!upcoming.length && <div className="card"><div style={{ fontWeight: 700 }}>No lines yet</div><p className="hint" style={{ margin: '6px 0 0' }}>Lines refresh every few hours. If this is a fresh install, the engine is still pulling the first slate.</p></div>}
+    {query && upcoming.length > 0 && !list.length && <div className="card"><div style={{ fontWeight: 700 }}>No games match "{q.trim()}"</div><p className="hint" style={{ margin: '6px 0 0' }}>Try the team name or city, or clear the search.</p></div>}
     {list.map(g => {
       const k = new Date(g.commence_time); const locked = k.getTime() <= now;
-      const sides = market === 'totals' ? ['Over', 'Under'] : [g.away, g.home];
+      const mine = d.picks.filter(p => p.game_id === g.id);
       return <div key={g.id} className="game">
-        <div className="when">{g.league} · {locked ? <b>In play</b> : k.toLocaleString(undefined, { weekday: 'short', hour: 'numeric', minute: '2-digit' })}{market === 'totals' ? '' : ` · ${g.away} at ${g.home}`}</div>
-        <div className="sides">{sides.map(sel => {
-          const l = lineFor(g, sel); const has = mine(g).find(p => p.selection === sel); const opp = mine(g).find(p => p.selection !== sel);
-          return <button key={sel} className={'odd ' + (has ? 'sel' : '')} disabled={locked || !l || !!opp} onClick={() => l && onPick(g, l)}>
-            <div className="t">{sel} {l && market !== 'h2h' && <span className="p">{pt(l.point)}</span>}</div>
-            <div className={'o ' + (l && l.price < 0 ? 'neg' : '')}>{l ? oddsTxt(l.price) : '—'}</div>
-            <div className="p">{l ? `${Math.round(implied(l.price) * 100)}% · ${basePoints(l.price)} pts` : 'no line'}{has ? ' · picked' : ''}</div></button>;
-        })}</div>
+        <div className="when">{g.league} · {locked ? <b>In play</b> : k.toLocaleString(undefined, { weekday: 'short', hour: 'numeric', minute: '2-digit' })}</div>
+        <div className="mhead" aria-hidden="true"><span /><span>ML</span><span>Spread</span><span>Total</span></div>
+        {[g.away, g.home].map((team, i) => <div className="mrow" key={team}>
+          <div className="tname" title={team}>{shortName(team)}</div>
+          {MKS.map(([mk]) => {
+            const sel = mk === 'totals' ? (i === 0 ? 'Over' : 'Under') : team;
+            const l = lineFor(g, mk, sel);
+            const has = mine.find(p => p.market === mk && p.selection === sel); const opp = mine.find(p => p.market === mk && p.selection !== sel);
+            const tail = l ? `${Math.round(implied(l.price) * 100)} percent implied, ${basePoints(l.price)} points` : '';
+            const label = !l ? `${mk === 'totals' ? sel : team}, no line`
+              : mk === 'h2h' ? `${team}, ${spoken(l.price)}, ${tail}`
+              : mk === 'spreads' ? `${team} ${spoken(l.point ?? 0)}, ${spoken(l.price)}, ${tail}`
+              : `${sel} ${l.point}, ${spoken(l.price)}, ${tail}`;
+            return <button key={mk} className={'mpill ' + (has ? 'sel' : '')} disabled={locked || !l || !!opp} aria-label={label} aria-pressed={!!has} onClick={() => l && onPick(g, l)}>
+              {l ? <>
+                {mk !== 'h2h' && <span className="ln">{mk === 'totals' ? `${i === 0 ? 'O' : 'U'} ${l.point}` : pt(l.point)}</span>}
+                <span className="od">{oddsTxt(l.price)}</span>
+                <span className="sb">{Math.round(implied(l.price) * 100)}% · {basePoints(l.price)}</span>
+              </> : <span className="sb">—</span>}
+            </button>;
+          })}
+        </div>)}
         {ENABLE_PROPS && !locked && <button className="btn ghost sm" style={{ marginTop: 8 }} onClick={() => openProps(g)}>{propsFor === g.id ? 'Hide props' : 'Player props'}</button>}
         {propsFor === g.id && <div style={{ marginTop: 8 }}>{propLines.length ? propLines.map(l => { const [player, stat, side] = l.selection.split('|'); const has = d.picks.find(p => p.game_id === g.id && p.selection === l.selection);
           return <button key={l.selection} className={'prop ' + (has ? 'sel' : '')} onClick={() => onPick(g, l)}><div><div className="n">{player}</div><div className="s">{stat.replace(/^(player|batter|pitcher)_/, '').replace(/_/g, ' ')}</div></div><div className="s">{side} {l.point ?? ''}</div><div className="o">{oddsTxt(l.price)}</div></button>; })
@@ -233,7 +249,7 @@ function Cup({ d, uid }: { d: ReturnType<typeof useData>; uid: string }) {
       <div className="big">{fmt0(d.pot)}</div>
       {rows.some(r => r.id === uid) && <div className="hint" style={{ margin: '6px 0 0' }}>You hold <b className="mint">{(d.pot ? mine / d.pot * 100 : 0).toFixed(1)}%</b> of the pot right now: <b className="mint">{fmt(mine)}</b></div>}
       <div className="small" style={{ marginTop: 8 }}>60% split by points, 40% to the top 10. Points are the odds you hit, stake never matters. Best 15 picks a week count.</div></div>
-    {sorted.length ? sorted.map((r, i) => <div key={r.user_id} className={'lrow ' + (r.user_id === uid ? 'me' : '')}><div className="rk">{i + 1}</div><div className="nm">{r.display_name} {r.streak >= 3 && <span className="flame">🔥{r.streak}</span>}</div><div className="pt">{Math.round(Number(r.points ?? 0))}</div><div className="sh">{fmt0(split[r.user_id] ?? 0)}</div></div>) : <p className="hint">Nobody has settled a pick this month yet.</p>}
+    {sorted.length ? sorted.map((r, i) => <div key={r.user_id} className={'lrow ' + (r.user_id === uid ? 'me' : '')}><div className="rk">{i + 1}</div><div className="nm">{r.display_name} {r.streak >= 3 && <span className="flame"><Symbol name="flame" size={12} />{r.streak}</span>}</div><div className="pt">{Math.round(Number(r.points ?? 0))}</div><div className="sh">{fmt0(split[r.user_id] ?? 0)}</div></div>) : <p className="hint">Nobody has settled a pick this month yet.</p>}
   </section>;
 }
 
@@ -272,7 +288,7 @@ function Reveals({ d, gm }: { d: ReturnType<typeof useData>; gm: Record<string, 
   return <div className="reveal"><div className={'card2 ' + (phase === 'wait' ? 'shimmer' : 'pop ' + (won ? 'win' : ''))}>
     {phase === 'wait' ? <><p>{g.away} at {g.home}</p><div className="big">{label}</div><p>{oddsTxt(cur.odds)} · {fmt0(Number(cur.stake))} of {cur.ticker}</p><p style={{ marginTop: 14 }}>Final…</p></>
       : push ? <><p>{label} {oddsTxt(cur.odds)}</p><div className="big gold">Push</div><p>No points, streak intact. You still own {fmt0(Number(cur.stake))} of {cur.ticker}.</p></>
-      : won ? <><p>{label} {oddsTxt(cur.odds)}</p><div className="big mint">+{Math.round(cur.points)} pts</div>{(d.profile?.streak ?? 0) >= 3 && <p className="gold" style={{ fontWeight: 700 }}>🔥 {d.profile!.streak} straight · {d.profile!.streak >= 5 ? '2x' : '1.5x'} points</p>}<p>And you still own {fmt0(Number(cur.stake))} of {cur.ticker}.</p></>
+      : won ? <><p>{label} {oddsTxt(cur.odds)}</p><div className="big mint">+{Math.round(cur.points)} pts</div>{(d.profile?.streak ?? 0) >= 3 && <p className="gold" style={{ fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}><Symbol name="flame" size={14} />{d.profile!.streak} straight · {d.profile!.streak >= 5 ? '2x' : '1.5x'} points</p>}<p>And you still own {fmt0(Number(cur.stake))} of {cur.ticker}.</p></>
       : <><p>{label} {oddsTxt(cur.odds)}</p><div className="big" style={{ color: 'var(--muted)' }}>Missed</div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 14, textAlign: 'left' }}><div style={{ background: 'var(--coral2)', borderRadius: 12, padding: 10 }}><div className="small">Sportsbook timeline</div><div className="coral" style={{ fontWeight: 700, fontSize: 20 }}>-{fmt0(Number(cur.stake))}</div></div><div style={{ background: 'var(--mint2)', borderRadius: 12, padding: 10 }}><div className="small">Your timeline</div><div className="mint" style={{ fontWeight: 700, fontSize: 18 }}>own {fmt0(Number(cur.stake))} of {cur.ticker}</div></div></div>
         <p style={{ marginTop: 12 }}>Streak resets. The money didn't go anywhere.</p></>}
