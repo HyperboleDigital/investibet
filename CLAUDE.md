@@ -1,6 +1,6 @@
 # Investibet — Claude Code Handover (Sept 28, 2026)
 
-Paste this at the start of every Claude Code session. Read it fully before touching code. Then read `README.md` and, in `docs/`: `investibet-project-handoff.md`, `investibet-mvp-handoff.md`, `investibet-design-standards.md`, `investibet-cto-plan.md`, and `investibet-design-direction.md` (the research-locked redesign direction; its section 7 supersedes the build order below once Owen approves it).
+Paste this at the start of every Claude Code session. Read it fully before touching code. Then read `README.md` and, in `docs/`: `investibet-project-handoff.md`, `investibet-mvp-handoff.md`, `investibet-design-standards.md`, `investibet-cto-plan.md`, and `investibet-design-direction.md` (the research-locked redesign direction, approved Sept 28; its section 7 supersedes the build order below).
 
 ## What exists and where we are
 

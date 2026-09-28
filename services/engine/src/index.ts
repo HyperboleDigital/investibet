@@ -3,7 +3,8 @@ import express from 'express';
 import cron from 'node-cron';
 import { createClient } from '@supabase/supabase-js';
 import { grade, scoreSequence, bestFifteen, marketOpen } from '@investibet/core';
-import { SPORTS, fetchOdds, fetchScores, fetchEventProps, consensus } from './oddsapi.js';
+import { SPORTS, fetchOdds, fetchScores, fetchEventProps, fetchParticipants, consensus } from './oddsapi.js';
+import { importTeams } from './teams.js';
 
 const sb = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_KEY!, { auth: { persistSession: false } });
 const log = (...a: unknown[]) => console.log(new Date().toISOString(), ...a);
@@ -117,6 +118,7 @@ app.post('/jobs/odds', async (_, res) => { await ingestOdds(); res.json({ ok: tr
 app.post('/jobs/scores', async (_, res) => { const n = await ingestScores(); const s = await settle(); res.json({ finalized: n, settled: s }); });
 app.post('/jobs/prices', async (_, res) => { await refreshPrices(); await fillPending(); res.json({ ok: true }); });
 app.post('/jobs/settle', async (_, res) => res.json({ settled: await settle() }));
+app.post('/jobs/teams', async (_, res) => res.json(await importTeams(sb, fetchParticipants)));
 app.get('/props/:sport/:eventId', async (req, res) => {
   try { res.json(await ingestProps(req.params.sport, req.params.eventId)); } catch (e) { res.status(500).json({ error: (e as Error).message }); }
 });
@@ -125,9 +127,12 @@ cron.schedule('0 */6 * * *', ingestOdds);                                   // 4
 cron.schedule('*/10 * * * *', async () => { await ingestScores(); await settle(); }); // every 10 min
 cron.schedule('*/15 13-21 * * 1-5', fillPending);                           // during market hours (UTC), fill queued buys
 cron.schedule('5 21 * * 1-5', refreshPrices);                               // after close
+cron.schedule('0 4 * * 1', () => importTeams(sb, fetchParticipants));         // weekly: new aliases only, 6 credits
 
 app.listen(Number(process.env.PORT ?? 8787), async () => {
   log('engine up');
   const { count } = await sb.from('games').select('*', { count: 'exact', head: true });
   if (!count) { await refreshPrices(); await ingestOdds(); }
+  const { count: teams } = await sb.from('teams').select('*', { count: 'exact', head: true });
+  if (!teams) importTeams(sb, fetchParticipants).catch(e => log('teams import fail', (e as Error).message));
 });

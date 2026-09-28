@@ -47,6 +47,10 @@ export const fetchOdds = (sport: string) =>
 export const fetchEventProps = (sport: string, eventId: string) =>
   get<OddsEvent>(`/sports/${sport}/events/${eventId}/odds`, { regions: 'us', markets: (PROP_MARKETS[sport] ?? []).join(','), oddsFormat: 'american' });
 
+/** Canonical team names per sport (1 credit). Used once by the teams import to build aliases. */
+export const fetchParticipants = (sport: string) =>
+  get<{ id: string; full_name: string }[]>(`/sports/${sport}/participants`, {});
+
 export const fetchScores = (sport: string, daysFrom = 3) =>
   get<ScoreEvent[]>(`/sports/${sport}/scores`, { daysFrom: String(daysFrom) });
 

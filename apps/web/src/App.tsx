@@ -7,6 +7,7 @@ import { implied, basePoints, profit, potSplit, counterfactualDelta, project, ma
 /* ---------- types ---------- */
 type Game = { id: string; sport_key: string; league: string; home: string; away: string; commence_time: string; completed: boolean; home_score: number | null; away_score: number | null };
 type Line = { game_id: string; market: string; selection: string; point: number | null; price: number };
+type TeamInfo = { abbreviation: string; short_name: string; ui_color: string | null };
 type Pick = { id: string; game_id: string; market: string; selection: string; point: number | null; odds: number; stake: number; ticker: string; locked_at: string; fill_price: number | null; shares: number | null; filled_at: string | null; status: string; points: number; counted: boolean };
 type Stock = { ticker: string; name: string; tier: number; avg_return_10y: number; max_drawdown: number };
 type Profile = { id: string; display_name: string; streak: number; weekly_cap: number | null };
@@ -27,10 +28,11 @@ function useData(session: Session | null) {
   const [games, setGames] = useState<Game[]>([]); const [lines, setLines] = useState<Line[]>([]); const [picks, setPicks] = useState<Pick[]>([]);
   const [stocks, setStocks] = useState<Stock[]>([]); const [prices, setPrices] = useState<Record<string, number>>({});
   const [profile, setProfile] = useState<Profile | null>(null); const [lb, setLb] = useState<LB[]>([]); const [pot, setPot] = useState(100); const [broker, setBroker] = useState<Broker>(null);
+  const [teams, setTeams] = useState<Record<string, TeamInfo>>({});
   const load = useCallback(async () => {
     if (!session) return;
     const since = new Date(Date.now() - 6 * 3600e3).toISOString();
-    const [g, s, p, pr, pk, l, pc, bc] = await Promise.all([
+    const [g, s, p, pr, pk, l, pc, bc, tm] = await Promise.all([
       sb.from('games').select('*').gt('commence_time', since).order('commence_time').limit(400),
       sb.from('stock_lines').select('*'),
       sb.from('prices').select('ticker, price'),
@@ -39,8 +41,10 @@ function useData(session: Session | null) {
       sb.from('leaderboard').select('*').eq('month', month()),
       sb.from('pool_config').select('pot').eq('month', month()).maybeSingle(),
       sb.from('brokerage_connections').select('provider, connected').eq('user_id', session.user.id).maybeSingle(),
+      sb.from('team_lookup').select('odds_api_name, abbreviation, short_name, ui_color'),
     ]);
     setGames(g.data ?? []); setStocks(s.data ?? []); setPrices(Object.fromEntries((p.data ?? []).map(x => [x.ticker, Number(x.price)])));
+    setTeams(Object.fromEntries((tm.data ?? []).map(t => [t.odds_api_name, t as TeamInfo])));
     setProfile(pr.error ? null : (pr.data as Profile)); setPicks((pk.data ?? []) as Pick[]); setLb((l.data ?? []) as LB[]); setPot(Number(pc.data?.pot ?? 100)); setBroker(bc.data as Broker);
     const ids = (g.data ?? []).map(x => x.id);
     // Supabase caps responses at 1000 rows, so pull lines in chunks of 60 games
@@ -59,7 +63,7 @@ function useData(session: Session | null) {
     const t = setInterval(load, 120e3);
     return () => { sb.removeChannel(ch); clearInterval(t); };
   }, [session, load]);
-  return { games, lines, picks, stocks, prices, profile, lb, pot, broker, reload: load };
+  return { games, lines, picks, stocks, prices, profile, lb, pot, broker, teams, reload: load };
 }
 
 /* ---------- app ---------- */
@@ -108,10 +112,23 @@ function Shell({ session }: { session: Session }) {
 }
 
 /* ---------- board ---------- */
-const MKS: [string, string][] = [['h2h', 'ML'], ['spreads', 'Spread'], ['totals', 'Total']];
+const MKS: [string, string][] = [['spreads', 'Spread'], ['totals', 'Total'], ['h2h', 'ML']];
 const LEAGUE_ICONS: Record<string, string> = { All: 'sportscourt', NFL: 'football', NCAAF: 'football', NBA: 'basketball', NCAAB: 'basketball', MLB: 'baseball', NHL: 'puck' };
 const shortName = (t: string) => t.split(' ').slice(-1)[0];
 const spoken = (n: number) => (n > 0 ? 'plus ' : 'minus ') + Math.abs(n);
+// Team color sits behind a 2 or 3 letter monogram: dark ink on light colors, white on dark
+const inkOn = (hex: string) => { const c = hex.replace('#', ''); const [r, g, b] = [0, 2, 4].map(i => parseInt(c.slice(i, i + 2), 16) / 255); return 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.45 ? '#08130E' : '#FFFFFF'; };
+// Unmapped team (alias missing): neutral disc, first three letters, mascot as short name. Never breaks a card.
+const fallbackTeam = (name: string): TeamInfo => ({ abbreviation: name.replace(/[^A-Za-z]/g, '').slice(0, 3).toUpperCase(), short_name: shortName(name), ui_color: null });
+function Mono({ t, lg }: { t: TeamInfo; lg?: boolean }) {
+  return <span className={'mono ' + (lg ? 'lg' : '')} style={t.ui_color ? { background: t.ui_color, color: inkOn(t.ui_color) } : undefined} aria-hidden="true">{t.abbreviation}</span>;
+}
+const kickoffLabel = (k: Date) => {
+  const now = new Date(); const tomorrow = new Date(now); tomorrow.setDate(now.getDate() + 1);
+  const day = k.toDateString() === now.toDateString() ? (k.getHours() >= 17 ? 'Tonight' : 'Today')
+    : k.toDateString() === tomorrow.toDateString() ? 'Tomorrow' : k.toLocaleDateString(undefined, { weekday: 'short' });
+  return { day, time: k.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }) };
+};
 
 function Board({ d, gm, onPick }: { d: ReturnType<typeof useData>; gm: Record<string, Game>; onPick: (g: Game, l: Line) => void }) {
   const [league, setLeague] = useState('All'); const [q, setQ] = useState(''); const [propsFor, setPropsFor] = useState<string | null>(null); const [propLines, setPropLines] = useState<Line[]>([]);
@@ -119,6 +136,7 @@ function Board({ d, gm, onPick }: { d: ReturnType<typeof useData>; gm: Record<st
   const query = q.trim().toLowerCase();
   const upcoming = d.games.filter(g => !g.completed && new Date(g.commence_time).getTime() > now - 4 * 3600e3);
   const list = (query ? upcoming.filter(g => `${g.away} ${g.home} ${g.league}`.toLowerCase().includes(query)) : upcoming.filter(g => league === 'All' || g.league === league)).slice(0, 60);
+  const team = (name: string): TeamInfo => d.teams[name] ?? fallbackTeam(name);
   const lineFor = (g: Game, market: string, sel: string) => d.lines.find(l => l.game_id === g.id && l.market === market && l.selection === sel);
   const openProps = async (g: Game) => {
     if (propsFor === g.id) return setPropsFor(null);
@@ -128,45 +146,81 @@ function Board({ d, gm, onPick }: { d: ReturnType<typeof useData>; gm: Record<st
     setPropLines((data ?? []) as Line[]);
   };
   const weekStaked = d.picks.filter(p => gm[p.game_id] && sameWeek(gm[p.game_id].commence_time)).reduce((s, p) => s + Number(p.stake), 0);
+
+  // Market grid: one row per side, Spread / Total / ML. Shared by the Tonight ticket and plain cards.
+  const grid = (g: Game, locked: boolean) => {
+    const mine = d.picks.filter(p => p.game_id === g.id);
+    return <>
+      <div className="mhead" aria-hidden="true"><span />{MKS.map(([k, l]) => <span key={k}>{l}</span>)}</div>
+      {[g.away, g.home].map((name, i) => { const t = team(name); return <div className="mrow" key={name}>
+        <div className="tname" title={name}><Mono t={t} /><div className="tt"><span className="ab">{t.abbreviation}</span><span className="sn">{t.short_name}</span></div></div>
+        {MKS.map(([mk]) => {
+          const sel = mk === 'totals' ? (i === 0 ? 'Over' : 'Under') : name;
+          const l = lineFor(g, mk, sel);
+          const has = mine.find(p => p.market === mk && p.selection === sel); const opp = mine.find(p => p.market === mk && p.selection !== sel);
+          const tail = l ? `${Math.round(implied(l.price) * 100)} percent implied, ${basePoints(l.price)} points` : '';
+          const label = !l ? `${mk === 'totals' ? sel : name}, no line`
+            : mk === 'h2h' ? `${name}, ${spoken(l.price)}, ${tail}`
+            : mk === 'spreads' ? `${name} ${spoken(l.point ?? 0)}, ${spoken(l.price)}, ${tail}`
+            : `${sel} ${l.point}, ${spoken(l.price)}, ${tail}`;
+          return <button key={mk} className={'mpill ' + (has ? 'sel' : '')} disabled={locked || !l || !!opp} aria-label={label} aria-pressed={!!has} onClick={() => l && onPick(g, l)}>
+            {l ? <>
+              {mk !== 'h2h' && <span className="ln">{mk === 'totals' ? `${i === 0 ? 'O' : 'U'} ${l.point}` : pt(l.point)}</span>}
+              <span className="od">{oddsTxt(l.price)}</span>
+              <span className="sb">{Math.round(implied(l.price) * 100)}% · {basePoints(l.price)}</span>
+            </> : <span className="sb">—</span>}
+          </button>;
+        })}
+      </div>; })}
+    </>;
+  };
+  const propsUi = (g: Game, locked: boolean) => <>
+    {ENABLE_PROPS && !locked && <button className="btn ghost sm" style={{ marginTop: 8 }} onClick={() => openProps(g)}>{propsFor === g.id ? 'Hide props' : 'Player props'}</button>}
+    {propsFor === g.id && <div style={{ marginTop: 8 }}>{propLines.length ? propLines.map(l => { const [player, stat, side] = l.selection.split('|'); const has = d.picks.find(p => p.game_id === g.id && p.selection === l.selection);
+      return <button key={l.selection} className={'prop ' + (has ? 'sel' : '')} onClick={() => onPick(g, l)}><div><div className="n">{player}</div><div className="s">{stat.replace(/^(player|batter|pitcher)_/, '').replace(/_/g, ' ')}</div></div><div className="s">{side} {l.point ?? ''}</div><div className="o">{oddsTxt(l.price)}</div></button>; })
+      : <p className="hint">Loading props…</p>}</div>}
+  </>;
+
+  // Tonight ticket for the next kickoff, then Starting soon / Upcoming / In play. Search shows plain rows only.
+  const open = list.filter(g => new Date(g.commence_time).getTime() > now);
+  const live = list.filter(g => new Date(g.commence_time).getTime() <= now);
+  const featured = query ? null : open[0] ?? null;
+  const rest = featured ? open.slice(1) : open;
+  const soon = rest.filter(g => new Date(g.commence_time).getTime() - now <= 90 * 60e3);
+  const later = rest.filter(g => new Date(g.commence_time).getTime() - now > 90 * 60e3);
+  const sections: [string, Game[], boolean][] = [['Starting soon', soon, false], ['Upcoming', later, false], ['In play', live, true]];
+  const labelled = sections.filter(s => s[1].length).length > 1;
+  const card = (g: Game) => {
+    const k = new Date(g.commence_time); const locked = k.getTime() <= now; const { day, time } = kickoffLabel(k);
+    return <div key={g.id} className="game">
+      <div className="when">{g.league} · {locked ? <b>In play</b> : `${day} ${time}`}</div>
+      {grid(g, locked)}{propsUi(g, locked)}
+    </div>;
+  };
+
   return <section className="view">
     <div className="row"><h2 style={{ fontSize: 22 }}>Lines</h2><span className="small">{d.profile?.weekly_cap ? `${fmt0(weekStaked)} of ${fmt0(Number(d.profile.weekly_cap))} this week` : `${fmt0(weekStaked)} staked this week`}</span></div>
     <div className="chips">{LEAGUES.map(l => <button key={l} className={'chip ' + (league === l && !query ? 'on' : '')} aria-pressed={league === l && !query} onClick={() => { setLeague(l); setQ(''); }}><Symbol name={LEAGUE_ICONS[l]} size={15} />{l}</button>)}</div>
     <div className="searchbar"><Symbol name="magnifyingglass" size={16} /><input className="search" placeholder="Search team or matchup" aria-label="Search team or matchup" value={q} onChange={e => setQ(e.target.value)} /></div>
     {!upcoming.length && <div className="card"><div style={{ fontWeight: 700 }}>No lines yet</div><p className="hint" style={{ margin: '6px 0 0' }}>Lines refresh every few hours. If this is a fresh install, the engine is still pulling the first slate.</p></div>}
     {query && upcoming.length > 0 && !list.length && <div className="card"><div style={{ fontWeight: 700 }}>No games match "{q.trim()}"</div><p className="hint" style={{ margin: '6px 0 0' }}>Try the team name or city, or clear the search.</p></div>}
-    {list.map(g => {
-      const k = new Date(g.commence_time); const locked = k.getTime() <= now;
-      const mine = d.picks.filter(p => p.game_id === g.id);
-      return <div key={g.id} className="game">
-        <div className="when">{g.league} · {locked ? <b>In play</b> : k.toLocaleString(undefined, { weekday: 'short', hour: 'numeric', minute: '2-digit' })}</div>
-        <div className="mhead" aria-hidden="true"><span /><span>ML</span><span>Spread</span><span>Total</span></div>
-        {[g.away, g.home].map((team, i) => <div className="mrow" key={team}>
-          <div className="tname" title={team}>{shortName(team)}</div>
-          {MKS.map(([mk]) => {
-            const sel = mk === 'totals' ? (i === 0 ? 'Over' : 'Under') : team;
-            const l = lineFor(g, mk, sel);
-            const has = mine.find(p => p.market === mk && p.selection === sel); const opp = mine.find(p => p.market === mk && p.selection !== sel);
-            const tail = l ? `${Math.round(implied(l.price) * 100)} percent implied, ${basePoints(l.price)} points` : '';
-            const label = !l ? `${mk === 'totals' ? sel : team}, no line`
-              : mk === 'h2h' ? `${team}, ${spoken(l.price)}, ${tail}`
-              : mk === 'spreads' ? `${team} ${spoken(l.point ?? 0)}, ${spoken(l.price)}, ${tail}`
-              : `${sel} ${l.point}, ${spoken(l.price)}, ${tail}`;
-            return <button key={mk} className={'mpill ' + (has ? 'sel' : '')} disabled={locked || !l || !!opp} aria-label={label} aria-pressed={!!has} onClick={() => l && onPick(g, l)}>
-              {l ? <>
-                {mk !== 'h2h' && <span className="ln">{mk === 'totals' ? `${i === 0 ? 'O' : 'U'} ${l.point}` : pt(l.point)}</span>}
-                <span className="od">{oddsTxt(l.price)}</span>
-                <span className="sb">{Math.round(implied(l.price) * 100)}% · {basePoints(l.price)}</span>
-              </> : <span className="sb">—</span>}
-            </button>;
-          })}
-        </div>)}
-        {ENABLE_PROPS && !locked && <button className="btn ghost sm" style={{ marginTop: 8 }} onClick={() => openProps(g)}>{propsFor === g.id ? 'Hide props' : 'Player props'}</button>}
-        {propsFor === g.id && <div style={{ marginTop: 8 }}>{propLines.length ? propLines.map(l => { const [player, stat, side] = l.selection.split('|'); const has = d.picks.find(p => p.game_id === g.id && p.selection === l.selection);
-          return <button key={l.selection} className={'prop ' + (has ? 'sel' : '')} onClick={() => onPick(g, l)}><div><div className="n">{player}</div><div className="s">{stat.replace(/^(player|batter|pitcher)_/, '').replace(/_/g, ' ')}</div></div><div className="s">{side} {l.point ?? ''}</div><div className="o">{oddsTxt(l.price)}</div></button>; })
-          : <p className="hint">Loading props…</p>}</div>}
+    {featured && (() => {
+      const { day, time } = kickoffLabel(new Date(featured.commence_time)); const a = team(featured.away), h = team(featured.home);
+      return <div className="ticket">
+        <div className="tk-top">
+          <div className="tk-team" title={featured.away}><Mono t={a} lg /><span className="ab">{a.abbreviation}</span><span className="sn">{a.short_name}</span></div>
+          <div className="tk-mid"><span className="small">{featured.league}</span><b>{day}</b><span className="t">{time}</span></div>
+          <div className="tk-team" title={featured.home}><Mono t={h} lg /><span className="ab">{h.abbreviation}</span><span className="sn">{h.short_name}</span></div>
+        </div>
+        <div className="tear" />
+        {grid(featured, false)}{propsUi(featured, false)}
       </div>;
-    })}
-    <div className="disc">Lines are a consensus of US books, refreshed a few times a day. Odds lock the moment you tap Lock.</div>
+    })()}
+    {sections.map(([label, items, isLive]) => items.length ? <div key={label}>
+      {labelled && <div className="divider">{isLive && <span className="dot" />}{label}</div>}
+      {items.map(card)}
+    </div> : null)}
+    <div className="disc">Lines are a consensus of US books, refreshed a few times a day. Odds lock the moment you tap Lock. Team names identify games and are trademarks of their owners. Investibet is not affiliated with any league or team.</div>
   </section>;
 }
 const sameWeek = (iso: string) => { const a = new Date(iso), b = new Date(); const wk = (x: Date) => { const d = new Date(x); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return d.getTime(); }; return wk(a) === wk(b); };
