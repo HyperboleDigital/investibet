@@ -43,7 +43,10 @@ function useData(session: Session | null) {
     setGames(g.data ?? []); setStocks(s.data ?? []); setPrices(Object.fromEntries((p.data ?? []).map(x => [x.ticker, Number(x.price)])));
     setProfile(pr.error ? null : (pr.data as Profile)); setPicks((pk.data ?? []) as Pick[]); setLb((l.data ?? []) as LB[]); setPot(Number(pc.data?.pot ?? 100)); setBroker(bc.data as Broker);
     const ids = (g.data ?? []).map(x => x.id);
-    if (ids.length) { const ln = await sb.from('lines').select('game_id, market, selection, point, price').in('game_id', ids.slice(0, 300)); setLines((ln.data ?? []) as Line[]); }
+    // Supabase caps responses at 1000 rows, so pull lines in chunks of 60 games
+    const chunks: string[][] = []; for (let i = 0; i < ids.length; i += 60) chunks.push(ids.slice(i, i + 60));
+    const lineSets = await Promise.all(chunks.map(c => sb.from('lines').select('game_id, market, selection, point, price').in('game_id', c).limit(1000)));
+    setLines(lineSets.flatMap(r => (r.data ?? []) as Line[]));
     // games for my picks that fell out of the window (settled)
     const missing = (pk.data ?? []).map(x => x.game_id).filter(id => !ids.includes(id));
     if (missing.length) { const mg = await sb.from('games').select('*').in('id', missing); setGames(prev => [...prev, ...(mg.data ?? [])]); }
@@ -69,13 +72,12 @@ export default function App() {
 }
 
 function Gate() {
-  const [email, setEmail] = useState(''); const [name, setName] = useState(''); const [sent, setSent] = useState(false);
-  const go = async () => { if (!email) return; const { error } = await sb.auth.signInWithOtp({ email, options: { data: { display_name: name || email.split('@')[0] }, emailRedirectTo: location.origin } }); if (!error) setSent(true); };
+  const [email, setEmail] = useState(''); const [sent, setSent] = useState(false);
+  const go = async () => { if (!email) return; const { error } = await sb.auth.signInWithOtp({ email, options: { emailRedirectTo: location.origin } }); if (!error) setSent(true); };
   return <div className="gate"><div className="box">
     <div className="brand" style={{ fontSize: 28 }}>Investi<span>bet</span></div>
     <p className="hint">Sports picks where the stake buys stock you keep. Losing loses nothing.</p>
     {sent ? <p className="hint">Check your email for the sign-in link.</p> : <>
-      <input placeholder="Name for the leaderboard" value={name} onChange={e => setName(e.target.value)} maxLength={20} />
       <input placeholder="Email" type="email" inputMode="email" autoCapitalize="none" value={email} onChange={e => setEmail(e.target.value)} />
       <button className="btn" onClick={go}>Send me a sign-in link</button></>}
     <div className="disc">Free, private beta. No money moves through this app. Brokerage connection is simulated during beta.</div>
