@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "scripts": { "dev": "vite", "build": "tsc -b && vite build", "preview": "vite preview" },
+  "scripts": { "dev": "vite", "build": "vite build", "typecheck": "tsc --noEmit", "preview": "vite preview" },
   "dependencies": {
     "@investibet/core": "workspace:*",
     "@supabase/supabase-js": "^2.45.0",
