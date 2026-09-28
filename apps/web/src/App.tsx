@@ -93,7 +93,7 @@ function Shell({ session }: { session: Session }) {
     <header><div className="brand">Investi<span>bet</span></div>
       <button className={'pill ' + (d.broker?.connected ? 'mint' : '')} onClick={() => setBrokerOpen(true)}>{d.broker?.connected ? `${BROKERS.find(b => b[0] === d.broker!.provider)?.[1]} connected` : 'Connect brokerage'}</button></header>
     {tab === 'board' && <Board d={d} gm={gm} onPick={(game, line) => d.broker?.connected ? setSlip({ game, line }) : setBrokerOpen(true)} />}
-    {tab === 'picks' && <Picks d={d} gm={gm} />}
+    {tab === 'picks' && <Picks d={d} gm={gm} say={say} />}
     {tab === 'cup' && <Cup d={d} uid={session.user.id} />}
     {tab === 'home' && <Home d={d} gm={gm} say={say} onBroker={() => setBrokerOpen(true)} />}
     <nav>
@@ -225,7 +225,15 @@ function BrokerSheet({ open, current, uid, onClose, onDone }: { open: boolean; c
 }
 
 /* ---------- picks ---------- */
-function Picks({ d, gm }: { d: ReturnType<typeof useData>; gm: Record<string, Game> }) {
+function Picks({ d, gm, say }: { d: ReturnType<typeof useData>; gm: Record<string, Game>; say: (m: string) => void }) {
+  const [arm, setArm] = useState<string | null>(null);
+  const cancel = async (p: Pick) => {
+    if (arm !== p.id) { setArm(p.id); setTimeout(() => setArm(a => (a === p.id ? null : a)), 3000); return; }
+    setArm(null);
+    const { error } = await sb.rpc('cancel_pick', { p_pick_id: p.id });
+    say(error ? error.message.replace(/^.*?: /, '') : 'Pick cancelled');
+    if (!error) d.reload();
+  };
   const list = d.picks.filter(p => gm[p.game_id]);
   if (!list.length) return <section className="view"><h2 style={{ fontSize: 22 }}>Your picks</h2><div className="card"><div style={{ fontWeight: 700 }}>No picks yet</div><p className="hint" style={{ margin: '6px 0 0' }}>Head to Lines and back a side.</p></div></section>;
   return <section className="view"><h2 style={{ fontSize: 22 }}>Your picks</h2><p className="hint">Every stake is stock you own. Points land when the game goes final.</p>
@@ -236,6 +244,7 @@ function Picks({ d, gm }: { d: ReturnType<typeof useData>; gm: Record<string, Ga
         <div className="row"><div><div className="side">{label} {oddsTxt(p.odds)}</div><div className="meta">{g.away} at {g.home}{g.completed ? ` · ${g.away_score}-${g.home_score}` : ''}</div></div>
           {p.status === 'pending' ? <span className="res">{live ? 'Live' : 'Pending'}</span> : won ? <span className="res w">Won · {Math.round(p.points)} pts</span> : lost ? <span className="res l">Lost · 0 pts</span> : <span className="res p">{p.status === 'push' ? 'Push' : 'Void'}</span>}</div>
         <div className="meta" style={{ marginTop: 10 }}>{p.filled_at ? `Bought ${Number(p.shares).toFixed(4)} ${p.ticker} at ${fmt(Number(p.fill_price))}${val != null ? ` · now ${fmt(val)}` : ''}` : `${fmt0(Number(p.stake))} of ${p.ticker} · buys at next market open`}</div>
+        {p.status === 'pending' && !live && <button className="btn danger sm" style={{ marginTop: 10 }} onClick={() => cancel(p)}>{arm === p.id ? 'Tap again to cancel' : 'Cancel pick'}</button>}
       </div>; })}
   </section>;
 }
