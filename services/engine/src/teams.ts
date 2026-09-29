@@ -55,7 +55,7 @@ function match(name: string, teams: EspnTeam[]): { t: EspnTeam; how: string } | 
   return best && score >= 0.6 ? { t: best, how: `fuzzy ${score.toFixed(2)}` } : null;
 }
 
-export type TeamsReport = Record<string, { teams: number; aliased: number; fuzzy: string[]; unmatched: string[] }>;
+export type TeamsReport = Record<string, { teams: number; aliased: number; fuzzy: string[]; unmatched: string[]; participantsError?: string }>;
 
 export async function importTeams(sb: SupabaseClient, fetchParticipants: (sport: string) => Promise<Participant[]>): Promise<TeamsReport> {
   const report: TeamsReport = {};
@@ -72,16 +72,22 @@ export async function importTeams(sb: SupabaseClient, fetchParticipants: (sport:
     const { data: saved, error } = await sb.from('teams').upsert(rows, { onConflict: 'league,espn_id' }).select('id, espn_id');
     if (error) { console.log('[teams] upsert fail', league, error.message); continue; }
     const idByEspn = new Map((saved ?? []).map(s => [String(s.espn_id), s.id as number]));
-    const rep = { teams: rows.length, aliased: 0, fuzzy: [] as string[], unmatched: [] as string[] };
+    const rep: TeamsReport[string] = { teams: rows.length, aliased: 0, fuzzy: [], unmatched: [] };
 
-    let participants: Participant[] = [];
-    try { participants = await fetchParticipants(sport); } catch (e) { console.log('[teams] participants fail', league, (e as Error).message); }
+    // Names to map: every team already on the board (free, from games) plus the Odds API participant list
+    // when it answers (1 credit, covers teams with no game yet). Either source alone is enough to run.
+    const names = new Set<string>();
+    const { data: games } = await sb.from('games').select('home, away').eq('sport_key', sport);
+    for (const g of games ?? []) { names.add(g.home); names.add(g.away); }
+    try { for (const p of await fetchParticipants(sport)) names.add(p.full_name); }
+    catch (e) { rep.participantsError = (e as Error).message.slice(0, 200); console.log('[teams] participants fail', league, rep.participantsError); }
+
     const aliases: { odds_api_name: string; team_id: number }[] = [];
-    for (const p of participants) {
-      const m = match(p.full_name, teams);
-      if (!m) { rep.unmatched.push(p.full_name); continue; }
-      if (m.how !== 'exact') rep.fuzzy.push(`${p.full_name} -> ${m.t.displayName} (${m.how})`);
-      const id = idByEspn.get(m.t.id); if (id) aliases.push({ odds_api_name: p.full_name, team_id: id });
+    for (const name of names) {
+      const m = match(name, teams);
+      if (!m) { rep.unmatched.push(name); continue; }
+      if (m.how !== 'exact') rep.fuzzy.push(`${name} -> ${m.t.displayName} (${m.how})`);
+      const id = idByEspn.get(m.t.id); if (id) aliases.push({ odds_api_name: name, team_id: id });
     }
     // ignoreDuplicates: a hand-fixed alias is never overwritten by a rerun
     if (aliases.length) await sb.from('team_aliases').upsert(aliases, { onConflict: 'odds_api_name', ignoreDuplicates: true });
