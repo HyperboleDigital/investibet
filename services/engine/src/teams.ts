@@ -16,6 +16,7 @@ const ESPN: Record<string, string> = {
 const OVERRIDES: Record<string, string> = {
   'Los Angeles Clippers': 'LA Clippers',
   'Oakland Athletics': 'Athletics',
+  'UMass Minutemen': 'Massachusetts Minutemen',
 };
 const CARD_SURFACE = '#151A2C'; // --bg2, what the discs sit on
 
@@ -38,7 +39,7 @@ export function pickUiColor(color?: string, alt?: string) {
 }
 
 /** Same normalizer on both sides, so "St. John's Red Storm" and "St John's Red Storm" meet in the middle. */
-export const norm = (s: string) => s.toLowerCase().replace(/\(.*?\)/g, ' ').replace(/&/g, ' and ').replace(/\bst\.?\s/g, 'state ').replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
+export const norm = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/['’]/g, '').replace(/\(.*?\)/g, ' ').replace(/&/g, ' and ').replace(/\bst\.?\s/g, 'state ').replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
 
 function match(name: string, teams: EspnTeam[]): { t: EspnTeam; how: string } | null {
   const target = norm(OVERRIDES[name] ?? name);
