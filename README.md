@@ -6,7 +6,7 @@ Everything is live except the brokerage order, which is simulated during beta (f
 
 ```
 apps/web         PWA (React + Vite + TS). Login, lines board, slip, picks, cup, home, reveals
-services/engine  Node on Render. Odds ingest, scores, simulated fills, settlement, props on demand
+services/engine  Node on Render. Lines + scores from ESPN's public scoreboard (free), team colors, simulated fills, settlement
 packages/core    Pure math: grading, points, streaks, best-15, pot split, counterfactual. Tested.
 supabase/        Schema, RLS, lock_pick() RPC, seed stock lines
 ```
@@ -14,8 +14,8 @@ supabase/        Schema, RLS, lock_pick() RPC, seed stock lines
 ## Deploy (about 30 minutes)
 
 1. **Supabase**: new project → SQL editor → paste `supabase/migrations/0001_init.sql` → run. Auth → Email → enable magic links. Copy URL, anon key, service key.
-2. **The Odds API**: get a key at the-odds-api.com. Free tier is fine for beta (engine pulls 4x/day per sport, ~24 requests/day/sport).
-3. **Engine on Render**: New → Blueprint → pick the repo. `render.yaml` at the root creates the engine service. Add SUPABASE_URL, SUPABASE_SERVICE_KEY, ODDS_API_KEY in the dashboard. Health check `/health`. On first boot it pulls prices and the full slate. Copy the onrender.com URL.
+2. **Lines and scores** come from ESPN's public scoreboard for free (`LINES_SOURCE=espn`, the default): one book's prices, hourly, plus live finals. To switch to a ~40-book consensus instead, get a paid key at the-odds-api.com and set `LINES_SOURCE=oddsapi` + `ODDS_API_KEY` (the free 500 credits/month are not enough; score polling alone burns them in a day). Player props need the Odds API path.
+3. **Engine on Render**: New → Blueprint → pick the repo. `render.yaml` at the root creates the engine service. Add SUPABASE_URL and SUPABASE_SERVICE_KEY in the dashboard (ODDS_API_KEY only if using that source). Health check `/health`. On first boot it pulls prices and the full slate. Copy the onrender.com URL.
 4. **Web on Vercel**: root `apps/web`, build `pnpm --filter @investibet/web build`, output `apps/web/dist`. Env: VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY, VITE_ENGINE_URL (Render URL), VITE_ENABLE_PROPS=false.
 5. Add the Vercel URL to Supabase Auth → URL configuration → redirect URLs.
 

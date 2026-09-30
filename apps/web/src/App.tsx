@@ -220,7 +220,7 @@ function Board({ d, gm, onPick }: { d: ReturnType<typeof useData>; gm: Record<st
       {labelled && <div className="divider">{isLive && <span className="dot" />}{label}</div>}
       {items.map(card)}
     </div> : null)}
-    <div className="disc">Lines are a consensus of US books, refreshed a few times a day. Odds lock the moment you tap Lock. Team names identify games and are trademarks of their owners. Investibet is not affiliated with any league or team.</div>
+    <div className="disc">Lines come from one major sportsbook via public scoreboard data, refreshed hourly. Odds lock the moment you tap Lock. Team names identify games and are trademarks of their owners. Investibet is not affiliated with any league or team.</div>
   </section>;
 }
 const sameWeek = (iso: string) => { const a = new Date(iso), b = new Date(); const wk = (x: Date) => { const d = new Date(x); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return d.getTime(); }; return wk(a) === wk(b); };

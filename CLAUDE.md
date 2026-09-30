@@ -6,7 +6,7 @@ Paste this at the start of every Claude Code session. Read it fully before touch
 
 Monorepo, deployed and running:
 - `apps/web` React + Vite + TS PWA on Vercel. Screens: Gate (email magic link), Lines, Picks, Cup (leaderboard + pot), Home, Reveal overlay, Slip sheet, simulated Brokerage sheet.
-- `services/engine` Node on Render. Pulls lines from The Odds API (6 US leagues, h2h/spreads/totals) 4x/day, scores every 10 min, simulated fills at next market price (Stooq), settlement, props on demand behind a flag.
+- `services/engine` Node on Render. Lines and scores from ESPN's public scoreboard, free (`LINES_SOURCE=espn`; 6 US leagues, h2h/spreads/totals, hourly, plus team colors import). The Odds API consensus path survives behind `LINES_SOURCE=oddsapi` and a paid key; props need it. Simulated fills at next market price (Stooq), settlement.
 - `packages/core` pure math, Vitest, green: implied, profit, basePoints, streakMultiplier, grade, scoreSequence, bestFifteen, potSplit, counterfactualDelta, project, marketOpen. **All money and points math lives here and nowhere else. Add tests for anything new before wiring it.**
 - `supabase/migrations/0001_init.sql` schema, RLS, `lock_pick()` RPC, `leaderboard` view, seeded `stock_lines`.
 

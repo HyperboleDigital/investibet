@@ -3,17 +3,10 @@
  *  Rationale and legal read: docs/investibet-design-direction.md section 5. */
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { SPORTS } from './oddsapi.js';
+import { ESPN_PATH as ESPN } from './espn.js';
 
-const ESPN: Record<string, string> = {
-  americanfootball_nfl: 'football/nfl',
-  americanfootball_ncaaf: 'football/college-football',
-  basketball_nba: 'basketball/nba',
-  basketball_ncaab: 'basketball/mens-college-basketball',
-  baseball_mlb: 'baseball/mlb',
-  icehockey_nhl: 'hockey/nhl',
-};
 /** Odds API name -> ESPN displayName where the two disagree. */
-const OVERRIDES: Record<string, string> = {
+export const OVERRIDES: Record<string, string> = {
   'Los Angeles Clippers': 'LA Clippers',
   'Oakland Athletics': 'Athletics',
   'UMass Minutemen': 'Massachusetts Minutemen',
@@ -41,6 +34,9 @@ export function pickUiColor(color?: string, alt?: string) {
 /** Same normalizer on both sides, so "St. John's Red Storm" and "St John's Red Storm" meet in the middle. */
 export const norm = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/['’]/g, '').replace(/\(.*?\)/g, ' ').replace(/&/g, ' and ').replace(/\bst\.?\s/g, 'state ').replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
 
+/** Same team under an Odds API spelling and an ESPN spelling. */
+export const sameTeam = (a: string, b: string) => norm(OVERRIDES[a] ?? a) === norm(OVERRIDES[b] ?? b);
+
 function match(name: string, teams: EspnTeam[]): { t: EspnTeam; how: string } | null {
   const target = norm(OVERRIDES[name] ?? name);
   const exact = teams.find(x => norm(x.displayName) === target) ?? teams.find(x => norm(`${x.location} ${x.name}`) === target);
@@ -58,7 +54,8 @@ function match(name: string, teams: EspnTeam[]): { t: EspnTeam; how: string } | 
 
 export type TeamsReport = Record<string, { teams: number; aliased: number; fuzzy: string[]; unmatched: string[]; participantsError?: string }>;
 
-export async function importTeams(sb: SupabaseClient, fetchParticipants: (sport: string) => Promise<Participant[]>): Promise<TeamsReport> {
+/** fetchParticipants is only worth its credit when lines come from The Odds API; pass null otherwise. */
+export async function importTeams(sb: SupabaseClient, fetchParticipants: ((sport: string) => Promise<Participant[]>) | null): Promise<TeamsReport> {
   const report: TeamsReport = {};
   for (const [sport, league] of Object.entries(SPORTS)) {
     const r = await fetch(`https://site.api.espn.com/apis/site/v2/sports/${ESPN[sport]}/teams?limit=1000`);
@@ -75,15 +72,18 @@ export async function importTeams(sb: SupabaseClient, fetchParticipants: (sport:
     const idByEspn = new Map((saved ?? []).map(s => [String(s.espn_id), s.id as number]));
     const rep: TeamsReport[string] = { teams: rows.length, aliased: 0, fuzzy: [], unmatched: [] };
 
-    // Names to map: every team already on the board (free, from games) plus the Odds API participant list
-    // when it answers (1 credit, covers teams with no game yet). Either source alone is enough to run.
-    const names = new Set<string>();
+    // Names to map: every ESPN display name (what ESPN-sourced games use), every name already on the board
+    // (covers legacy Odds API rows), plus the Odds API participant list when lines come from there.
+    const names = new Set<string>(teams.map(t => t.displayName));
     const { data: games } = await sb.from('games').select('home, away').eq('sport_key', sport);
     for (const g of games ?? []) { names.add(g.home); names.add(g.away); }
-    try { for (const p of await fetchParticipants(sport)) names.add(p.full_name); }
-    catch (e) { rep.participantsError = (e as Error).message.slice(0, 200); console.log('[teams] participants fail', league, rep.participantsError); }
+    if (fetchParticipants) {
+      try { for (const p of await fetchParticipants(sport)) names.add(p.full_name); }
+      catch (e) { rep.participantsError = (e as Error).message.slice(0, 200); console.log('[teams] participants fail', league, rep.participantsError); }
+    }
 
     const aliases: { odds_api_name: string; team_id: number }[] = [];
+    for (const t of teams) { const id = idByEspn.get(t.id); if (id) aliases.push({ odds_api_name: t.displayName, team_id: id }); names.delete(t.displayName); }
     for (const name of names) {
       const m = match(name, teams);
       if (!m) { rep.unmatched.push(name); continue; }
@@ -91,8 +91,10 @@ export async function importTeams(sb: SupabaseClient, fetchParticipants: (sport:
       const id = idByEspn.get(m.t.id); if (id) aliases.push({ odds_api_name: name, team_id: id });
     }
     // ignoreDuplicates: a hand-fixed alias is never overwritten by a rerun
-    if (aliases.length) await sb.from('team_aliases').upsert(aliases, { onConflict: 'odds_api_name', ignoreDuplicates: true });
-    rep.aliased = aliases.length; report[league] = rep;
+    // ESPN reuses a display name across leagues now and then (NCAAF and NCAAB share schools). First one wins, both map to the same colors.
+    const unique = [...new Map(aliases.map(a => [a.odds_api_name, a])).values()];
+    if (unique.length) await sb.from('team_aliases').upsert(unique, { onConflict: 'odds_api_name', ignoreDuplicates: true });
+    rep.aliased = unique.length; report[league] = rep;
     console.log(`[teams] ${league}: ${rep.teams} teams, ${rep.aliased} aliased, ${rep.fuzzy.length} fuzzy, ${rep.unmatched.length} unmatched`);
     for (const f of rep.fuzzy) console.log('[teams]   fuzzy', f);
     for (const u of rep.unmatched) console.log('[teams]   unmatched', u);
