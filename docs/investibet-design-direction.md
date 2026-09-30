@@ -161,6 +161,8 @@ Same sessions, two changes: the visual system and team colors land first because
 
 Resolved Sept 28, 2026: 8.1 Spread / Total / ML approved. 8.2 plain Lock button; the drag gesture is not for now. 8.3 team colors ship in session 1, attorney read before public launch. Build order in section 7 approved and now supersedes the handover's.
 
+Revised Sept 29, 2026, after Owen saw it live: the notched ticket visual is rejected. The Tonight hero card is gone; every game renders as a uniform card and the section dividers do the wayfinding. The lock, settle, and share card from 4.3 stays one component but as a plain rounded card, no notches and no tear line. Disc colors keep each team's primary hue, lightened only as far as contrast requires, never swapped to the alternate color.
+
 **8.1 Pill order.** The handover says "ML / Spread / Total." Every US book, and the reviewers' descriptions of Hard Rock's Trending cards, run Spread, Total, Moneyline. Recommendation: switch to the standard order. The current build ships ML first.
 
 **8.2 Turf's lock gesture.** Turf makes you drag a puck toward a team and release to claim a ticket. It is the most memorable thing in their app. The CTO plan says nothing animates on the money-in path except confirmation feedback, so the recommendation is a plain Lock button and the ticket spring-in as the confirmation. If you want the drag gesture anyway, it needs a tap fallback for VoiceOver and a rule change in the CTO plan.

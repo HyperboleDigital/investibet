@@ -120,8 +120,8 @@ const spoken = (n: number) => (n > 0 ? 'plus ' : 'minus ') + Math.abs(n);
 const inkOn = (hex: string) => { const c = hex.replace('#', ''); const [r, g, b] = [0, 2, 4].map(i => parseInt(c.slice(i, i + 2), 16) / 255); return 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.45 ? '#08130E' : '#FFFFFF'; };
 // Unmapped team (alias missing): neutral disc, first three letters, mascot as short name. Never breaks a card.
 const fallbackTeam = (name: string): TeamInfo => ({ abbreviation: name.replace(/[^A-Za-z]/g, '').slice(0, 3).toUpperCase(), short_name: shortName(name), ui_color: null });
-function Mono({ t, lg }: { t: TeamInfo; lg?: boolean }) {
-  return <span className={'mono ' + (lg ? 'lg' : '')} style={t.ui_color ? { background: t.ui_color, color: inkOn(t.ui_color) } : undefined} aria-hidden="true">{t.abbreviation}</span>;
+function Mono({ t }: { t: TeamInfo }) {
+  return <span className="mono" style={t.ui_color ? { background: t.ui_color, color: inkOn(t.ui_color) } : undefined} aria-hidden="true">{t.abbreviation}</span>;
 }
 const kickoffLabel = (k: Date) => {
   const now = new Date(); const tomorrow = new Date(now); tomorrow.setDate(now.getDate() + 1);
@@ -181,13 +181,11 @@ function Board({ d, gm, onPick }: { d: ReturnType<typeof useData>; gm: Record<st
       : <p className="hint">Loading props…</p>}</div>}
   </>;
 
-  // Tonight ticket for the next kickoff, then Starting soon / Upcoming / In play. Search shows plain rows only.
+  // Uniform cards under Starting soon / Upcoming / In play. No hero treatment; the sort finds tonight's game.
   const open = list.filter(g => new Date(g.commence_time).getTime() > now);
   const live = list.filter(g => new Date(g.commence_time).getTime() <= now);
-  const featured = query ? null : open[0] ?? null;
-  const rest = featured ? open.slice(1) : open;
-  const soon = rest.filter(g => new Date(g.commence_time).getTime() - now <= 90 * 60e3);
-  const later = rest.filter(g => new Date(g.commence_time).getTime() - now > 90 * 60e3);
+  const soon = open.filter(g => new Date(g.commence_time).getTime() - now <= 90 * 60e3);
+  const later = open.filter(g => new Date(g.commence_time).getTime() - now > 90 * 60e3);
   const sections: [string, Game[], boolean][] = [['Starting soon', soon, false], ['Upcoming', later, false], ['In play', live, true]];
   const labelled = sections.filter(s => s[1].length).length > 1;
   const card = (g: Game) => {
@@ -204,18 +202,6 @@ function Board({ d, gm, onPick }: { d: ReturnType<typeof useData>; gm: Record<st
     <div className="searchbar"><Symbol name="magnifyingglass" size={16} /><input className="search" placeholder="Search team or matchup" aria-label="Search team or matchup" value={q} onChange={e => setQ(e.target.value)} /></div>
     {!upcoming.length && <div className="card"><div style={{ fontWeight: 700 }}>No lines yet</div><p className="hint" style={{ margin: '6px 0 0' }}>Lines refresh every few hours. If this is a fresh install, the engine is still pulling the first slate.</p></div>}
     {query && upcoming.length > 0 && !list.length && <div className="card"><div style={{ fontWeight: 700 }}>No games match "{q.trim()}"</div><p className="hint" style={{ margin: '6px 0 0' }}>Try the team name or city, or clear the search.</p></div>}
-    {featured && (() => {
-      const { day, time } = kickoffLabel(new Date(featured.commence_time)); const a = team(featured.away), h = team(featured.home);
-      return <div className="ticket">
-        <div className="tk-top">
-          <div className="tk-team" title={featured.away}><Mono t={a} lg /><span className="ab">{a.abbreviation}</span><span className="sn">{a.short_name}</span></div>
-          <div className="tk-mid"><span className="small">{featured.league}</span><b>{day}</b><span className="t">{time}</span></div>
-          <div className="tk-team" title={featured.home}><Mono t={h} lg /><span className="ab">{h.abbreviation}</span><span className="sn">{h.short_name}</span></div>
-        </div>
-        <div className="tear" />
-        {grid(featured, false)}{propsUi(featured, false)}
-      </div>;
-    })()}
     {sections.map(([label, items, isLive]) => items.length ? <div key={label}>
       {labelled && <div className="divider">{isLive && <span className="dot" />}{label}</div>}
       {items.map(card)}
@@ -343,12 +329,14 @@ function Home({ d, gm, say, onBroker }: { d: ReturnType<typeof useData>; gm: Rec
 function Reveals({ d, gm }: { d: ReturnType<typeof useData>; gm: Record<string, Game> }) {
   const [seen, setSeen] = useState<Set<string>>(() => new Set(JSON.parse(localStorage.getItem('ib_seen') || '[]'))); const [cur, setCur] = useState<Pick | null>(null); const [phase, setPhase] = useState<'wait' | 'show'>('wait');
   const queue = d.picks.filter(p => p.status !== 'pending' && !seen.has(p.id) && gm[p.game_id]);
-  useEffect(() => { if (!cur && queue.length) { setCur(queue[0]); setPhase('wait'); const t = setTimeout(() => { setPhase('show'); navigator.vibrate?.([30, 40, 60]); }, 1300); return () => clearTimeout(t); } }, [queue.length, cur]);
+  useEffect(() => { if (!cur && queue.length) { setCur(queue[0]); setPhase('wait'); } }, [queue.length, cur]);
+  // The timer gets its own effect: keyed on the queue it was cancelled by its own state update, leaving the reveal stuck on "Final…"
+  useEffect(() => { if (!cur || phase !== 'wait') return; const t = setTimeout(() => { setPhase('show'); navigator.vibrate?.([30, 40, 60]); }, 1300); return () => clearTimeout(t); }, [cur, phase]);
   if (!cur) return null;
   const g = gm[cur.game_id]; const won = cur.status === 'won', push = cur.status === 'push' || cur.status === 'void';
   const label = cur.market === 'prop' ? cur.selection.split('|')[0] : cur.selection + (cur.market === 'h2h' ? '' : ' ' + pt(cur.point));
   const next = () => { const s = new Set(seen); s.add(cur.id); localStorage.setItem('ib_seen', JSON.stringify([...s])); setSeen(s); setCur(null); };
-  return <div className="reveal"><div className={'card2 ' + (phase === 'wait' ? 'shimmer' : 'pop ' + (won ? 'win' : ''))}>
+  return <div className="reveal" onClick={() => phase === 'wait' && setPhase('show')}><div className={'card2 ' + (phase === 'wait' ? 'shimmer' : 'pop ' + (won ? 'win' : ''))}>
     {phase === 'wait' ? <><p>{g.away} at {g.home}</p><div className="big">{label}</div><p>{oddsTxt(cur.odds)} · {fmt0(Number(cur.stake))} of {cur.ticker}</p><p style={{ marginTop: 14 }}>Final…</p></>
       : push ? <><p>{label} {oddsTxt(cur.odds)}</p><div className="big gold">Push</div><p>No points, streak intact. You still own {fmt0(Number(cur.stake))} of {cur.ticker}.</p></>
       : won ? <><p>{label} {oddsTxt(cur.odds)}</p><div className="big mint">+{Math.round(cur.points)} pts</div>{(d.profile?.streak ?? 0) >= 3 && <p className="gold" style={{ fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}><Symbol name="flame" size={14} />{d.profile!.streak} straight · {d.profile!.streak >= 5 ? '2x' : '1.5x'} points</p>}<p>And you still own {fmt0(Number(cur.stake))} of {cur.ticker}.</p></>

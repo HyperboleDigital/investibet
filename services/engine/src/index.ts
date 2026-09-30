@@ -164,7 +164,7 @@ export async function settle() {
 
 /* ---------------- http + schedule ---------------- */
 const app = express();
-app.get('/health', (_, res) => res.json({ ok: true, at: new Date().toISOString() }));
+app.get('/health', (_, res) => res.json({ ok: true, at: new Date().toISOString(), rev: process.env.RENDER_GIT_COMMIT?.slice(0, 7) ?? 'local' }));
 app.post('/jobs/odds', async (_, res) => { await ingestOdds(); res.json({ ok: true }); });
 app.post('/jobs/scores', async (_, res) => { const n = await ingestScores(); const s = await settle(); res.json({ finalized: n, settled: s }); });
 app.post('/jobs/prices', async (_, res) => { await refreshPrices(); await fillPending(); res.json({ ok: true }); });

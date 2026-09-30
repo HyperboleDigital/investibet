@@ -25,9 +25,15 @@ function contrast(a: string, b: string) {
   const la = luminance(a), lb = luminance(b); if (la == null || lb == null) return 0;
   const [hi, lo] = la > lb ? [la, lb] : [lb, la]; return (hi + 0.05) / (lo + 0.05);
 }
-/** WCAG 3:1 for non-text UI. Team color first, then alternate, else null and the client draws a neutral disc. */
+const mixWhite = (hex: string, amt: number) => '#' + [0, 2, 4].map(i => Math.round(parseInt(hex.replace('#', '').slice(i, i + 2), 16) * (1 - amt) + 255 * amt).toString(16).padStart(2, '0')).join('');
+/** The disc keeps the team's real hue. A color too dark for the card surface is lightened toward white in
+ *  5% steps until it clears WCAG 3:1 (non-text UI), instead of swapping to the alternate, which is usually
+ *  white or silver and reads as the wrong team. Alternate only fills in when the primary is missing. */
 export function pickUiColor(color?: string, alt?: string) {
-  for (const c of [color, alt]) if (c && contrast('#' + c, CARD_SURFACE) >= 3) return '#' + c.toLowerCase();
+  for (const raw of [color, alt]) {
+    if (!raw || !/^[0-9a-f]{6}$/i.test(raw)) continue;
+    for (let a = 0; a <= 0.6; a += 0.05) { const t = mixWhite('#' + raw, a); if (contrast(t, CARD_SURFACE) >= 3) return t.toLowerCase(); }
+  }
   return null;
 }
 

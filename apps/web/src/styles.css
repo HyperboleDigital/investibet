@@ -43,19 +43,6 @@ header{display:flex;align-items:center;justify-content:space-between;padding:18p
 .tname .sn{font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 /* Monogram disc: team color as identity accent, never a fill behind copy. Neutral when no color cleared 3:1. */
 .mono{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:50%;background:var(--bg3);color:var(--muted);font-size:9.5px;font-weight:800;letter-spacing:.02em;flex:none}
-.mono.lg{width:48px;height:48px;font-size:15px}
-/* Tonight ticket: Turf-style notched card for the featured game */
-.ticket{position:relative;overflow:hidden;margin:10px 0;padding:16px 14px 14px;border-radius:16px;background:linear-gradient(160deg,var(--bg3),var(--bg2));border:1px solid var(--line)}
-.tk-top{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:8px;padding-bottom:14px}
-.tk-team{display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center;min-width:0}
-.tk-team .ab{font-size:22px;font-weight:800;letter-spacing:-.02em;line-height:1}
-.tk-team .sn{font-size:12px;color:var(--muted);max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.tk-mid{display:flex;flex-direction:column;align-items:center;gap:2px;text-align:center}
-.tk-mid b{font-size:15px}.tk-mid .t{font-size:13px;color:var(--muted)}
-.tear{position:relative;border-top:2px dashed var(--line);margin:0 -14px 12px}
-.tear:before,.tear:after{content:"";position:absolute;top:-11px;width:20px;height:20px;border-radius:50%;background:var(--bg);border:1px solid var(--line)}
-.tear:before{left:-10px}.tear:after{right:-10px}
-.ticket .mpill .od{font-size:17px}
 .divider{display:flex;align-items:center;gap:8px;margin:18px 0 2px;font-size:12px;font-weight:600;color:var(--dim)}
 .divider:after{content:"";flex:1;border-top:1px solid var(--line)}
 .divider .dot{width:8px;height:8px;border-radius:50%;background:var(--gold);animation:pulse 1.6s ease-out infinite}
