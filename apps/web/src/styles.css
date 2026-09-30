@@ -51,7 +51,9 @@ header{display:flex;align-items:center;justify-content:space-between;padding:18p
 .mpill:active{transform:scale(.96)}
 .mpill .ln{font-size:12px;font-weight:600}
 .mpill .od{font-size:15px;font-weight:700;color:var(--mint)}
+.mpill .od .u{font-style:normal;font-size:10px;font-weight:700;margin-left:2px;opacity:.75}
 .mpill .sb{font-size:12px;color:var(--muted)}
+.tbar{height:3px;width:34px;border-radius:2px;background:var(--bg3);margin-top:3px}
 .mpill.sel{background:var(--mint);border-color:var(--mint)}
 .mpill.sel .od,.mpill.sel .ln{color:#08130E}.mpill.sel .sb{color:rgba(8,19,14,.72)}
 .mpill[disabled]{opacity:.45}

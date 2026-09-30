@@ -161,6 +161,12 @@ Same sessions, two changes: the visual system and team colors land first because
 
 Resolved Sept 28, 2026: 8.1 Spread / Total / ML approved. 8.2 plain Lock button; the drag gesture is not for now. 8.3 team colors ship in session 1, attorney read before public launch. Build order in section 7 approved and now supersedes the handover's.
 
+Added Sept 29, 2026, from Owen's Sleeper Picks screenshots (the closest live product to our constraint set: a board with no logos):
+- Adopted now: pills lead with points as the big mint number, American odds and implied % small beneath. Sleeper hides odds behind multipliers on purpose; we translate into our currency instead but keep the real line visible. Team-color underline bar under each team name, their identity trick without logos.
+- Adopted in later sessions: floating slip bar with leg count and payout (their "2 PLAYERS, $5 for $39.70, VIEW") in session 2; $5/$10/$25 quick stake chips in session 2; MAX vs FLEX toggle maps to Stack vs Flex; a Teams / Players top-level split when player props get a data source.
+- Rejected: popularity flame counts on picks (celebrates pick frequency), deposit-match promos, replacing odds entirely with multipliers.
+- Open for Owen: Sleeper orders columns winner, spread, total. We ship Spread / Total / ML per the 8.1 decision; flip to winner-first only if Owen asks.
+
 Revised Sept 29, 2026, after Owen saw it live: the notched ticket visual is rejected. The Tonight hero card is gone; every game renders as a uniform card and the section dividers do the wayfinding. The lock, settle, and share card from 4.3 stays one component but as a plain rounded card, no notches and no tear line. Disc colors keep each team's primary hue, lightened only as far as contrast requires, never swapped to the alternate color.
 
 **8.1 Pill order.** The handover says "ML / Spread / Total." Every US book, and the reviewers' descriptions of Hard Rock's Trending cards, run Spread, Total, Moneyline. Recommendation: switch to the standard order. The current build ships ML first.

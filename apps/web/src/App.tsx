@@ -153,21 +153,22 @@ function Board({ d, gm, onPick }: { d: ReturnType<typeof useData>; gm: Record<st
     return <>
       <div className="mhead" aria-hidden="true"><span />{MKS.map(([k, l]) => <span key={k}>{l}</span>)}</div>
       {[g.away, g.home].map((name, i) => { const t = team(name); return <div className="mrow" key={name}>
-        <div className="tname" title={name}><Mono t={t} /><div className="tt"><span className="ab">{t.abbreviation}</span><span className="sn">{t.short_name}</span></div></div>
+        <div className="tname" title={name}><Mono t={t} /><div className="tt"><span className="ab">{t.abbreviation}</span><span className="sn">{t.short_name}</span><span className="tbar" style={t.ui_color ? { background: t.ui_color } : undefined} /></div></div>
         {MKS.map(([mk]) => {
           const sel = mk === 'totals' ? (i === 0 ? 'Over' : 'Under') : name;
           const l = lineFor(g, mk, sel);
           const has = mine.find(p => p.market === mk && p.selection === sel); const opp = mine.find(p => p.market === mk && p.selection !== sel);
-          const tail = l ? `${Math.round(implied(l.price) * 100)} percent implied, ${basePoints(l.price)} points` : '';
+          const tail = l ? `${basePoints(l.price)} points, ${spoken(l.price)}, ${Math.round(implied(l.price) * 100)} percent implied` : '';
           const label = !l ? `${mk === 'totals' ? sel : name}, no line`
-            : mk === 'h2h' ? `${name}, ${spoken(l.price)}, ${tail}`
-            : mk === 'spreads' ? `${name} ${spoken(l.point ?? 0)}, ${spoken(l.price)}, ${tail}`
-            : `${sel} ${l.point}, ${spoken(l.price)}, ${tail}`;
+            : mk === 'h2h' ? `${name}, ${tail}`
+            : mk === 'spreads' ? `${name} ${spoken(l.point ?? 0)}, ${tail}`
+            : `${sel} ${l.point}, ${tail}`;
+          // Points lead, the line stays legible underneath: our currency up front, the sportsbook number for reference
           return <button key={mk} className={'mpill ' + (has ? 'sel' : '')} disabled={locked || !l || !!opp} aria-label={label} aria-pressed={!!has} onClick={() => l && onPick(g, l)}>
             {l ? <>
               {mk !== 'h2h' && <span className="ln">{mk === 'totals' ? `${i === 0 ? 'O' : 'U'} ${l.point}` : pt(l.point)}</span>}
-              <span className="od">{oddsTxt(l.price)}</span>
-              <span className="sb">{Math.round(implied(l.price) * 100)}% · {basePoints(l.price)}</span>
+              <span className="od">{basePoints(l.price)}<i className="u">pts</i></span>
+              <span className="sb">{oddsTxt(l.price)} · {Math.round(implied(l.price) * 100)}%</span>
             </> : <span className="sb">—</span>}
           </button>;
         })}
