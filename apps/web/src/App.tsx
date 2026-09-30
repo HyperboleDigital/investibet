@@ -282,7 +282,7 @@ function Picks({ d, gm, say }: { d: ReturnType<typeof useData>; gm: Record<strin
       const val = p.shares && d.prices[p.ticker] ? Number(p.shares) * d.prices[p.ticker] : null;
       return <div key={p.id} className={'pick ' + (won ? 'won' : lost ? 'lost' : '')}>
         <div className="row"><div><div className="side">{label} {oddsTxt(p.odds)}</div><div className="meta">{g.away} at {g.home}{g.completed ? ` · ${g.away_score}-${g.home_score}` : ''}</div></div>
-          {p.status === 'pending' ? <span className="res">{live ? 'Live' : 'Pending'}</span> : won ? <span className="res w">Won · {Math.round(p.points)} pts</span> : lost ? <span className="res l">Lost · 0 pts</span> : <span className="res p">{p.status === 'push' ? 'Push' : 'Void'}</span>}</div>
+          {p.status === 'pending' ? <span className="res">{live ? 'Live' : 'Pending'}</span> : won ? <span className="res w">Won · {Math.round(p.points)} pts</span> : lost ? <span className="res l">Missed</span> : <span className="res p">{p.status === 'push' ? 'Push' : 'Void'}</span>}</div>
         <div className="meta" style={{ marginTop: 10 }}>{p.filled_at ? `Bought ${Number(p.shares).toFixed(4)} ${p.ticker} at ${fmt(Number(p.fill_price))}${val != null ? ` · now ${fmt(val)}` : ''}` : `${fmt0(Number(p.stake))} of ${p.ticker} · buys at next market open`}</div>
         {p.status === 'pending' && !live && <button className="btn danger sm" style={{ marginTop: 10 }} onClick={() => cancel(p)}>{arm === p.id ? 'Tap again to cancel' : 'Cancel pick'}</button>}
       </div>; })}

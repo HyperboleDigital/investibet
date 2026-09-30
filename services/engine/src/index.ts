@@ -136,6 +136,27 @@ export async function refreshPrices() {
 }
 
 /* ---------------- settlement: idempotent, replayable ---------------- */
+/** Full replay of one user's points, streak and best-15 from their settled picks.
+ *  Beta: every locked pick counts as invested (filled: true). The simulated buy is committed at lock and
+ *  cannot fail; it is only priced at the next market open. Games often end before that open (every weekend
+ *  slate), and core's unfilled-earns-0 rule was zeroing legitimate wins. That rule returns with real orders. */
+export async function rescoreUser(uid: string) {
+  const { data: all } = await sb.from('picks').select('id, odds, status, stake, games!inner(commence_time)').eq('user_id', uid).neq('status', 'pending');
+  const seq = scoreSequence((all ?? []).map(p => ({ id: p.id, odds: p.odds, status: p.status as any, kickoff: (p as any).games.commence_time, filled: true })));
+  const counted = bestFifteen((all ?? []).map(p => ({ id: p.id, kickoff: (p as any).games.commence_time, points: seq.points[p.id] ?? 0 })));
+  for (const p of all ?? []) await sb.from('picks').update({ points: seq.points[p.id] ?? 0, counted: counted.has(p.id) }).eq('id', p.id);
+  await sb.from('profiles').update({ streak: seq.streak }).eq('id', uid);
+}
+
+/** Replay everyone. Run after a scoring rule changes; settlement stays idempotent so this is always safe. */
+export async function rescoreAll() {
+  const { data } = await sb.from('picks').select('user_id').neq('status', 'pending');
+  const uids = [...new Set((data ?? []).map(p => p.user_id))];
+  for (const uid of uids) await rescoreUser(uid);
+  log('rescored', uids.length, 'users');
+  return uids.length;
+}
+
 export async function settle() {
   // 1. grade pending picks on completed games
   const { data: pending } = await sb.from('picks')
@@ -150,13 +171,7 @@ export async function settle() {
     users.add(p.user_id); graded++;
   }
   // 2. recompute points, streaks, best-15 for affected users (full replay per user: cheap, and always correct)
-  for (const uid of users) {
-    const { data: all } = await sb.from('picks').select('id, odds, status, filled_at, stake, games!inner(commence_time)').eq('user_id', uid).neq('status', 'pending');
-    const seq = scoreSequence((all ?? []).map(p => ({ id: p.id, odds: p.odds, status: p.status as any, kickoff: (p as any).games.commence_time, filled: !!p.filled_at })));
-    const counted = bestFifteen((all ?? []).map(p => ({ id: p.id, kickoff: (p as any).games.commence_time, points: seq.points[p.id] ?? 0 })));
-    for (const p of all ?? []) await sb.from('picks').update({ points: seq.points[p.id] ?? 0, counted: counted.has(p.id) }).eq('id', p.id);
-    await sb.from('profiles').update({ streak: seq.streak }).eq('id', uid);
-  }
+  for (const uid of users) await rescoreUser(uid);
   await sb.from('settlement_runs').insert({ games_settled: 0, picks_settled: graded });
   if (graded) log('settled', graded, 'picks for', users.size, 'users');
   return graded;
@@ -169,6 +184,7 @@ app.post('/jobs/odds', async (_, res) => { await ingestOdds(); res.json({ ok: tr
 app.post('/jobs/scores', async (_, res) => { const n = await ingestScores(); const s = await settle(); res.json({ finalized: n, settled: s }); });
 app.post('/jobs/prices', async (_, res) => { await refreshPrices(); await fillPending(); res.json({ ok: true }); });
 app.post('/jobs/settle', async (_, res) => res.json({ settled: await settle() }));
+app.post('/jobs/rescore', async (_, res) => res.json({ users: await rescoreAll() }));
 app.post('/jobs/teams', async (_, res) => res.json(await importTeams(sb, LINES_SOURCE === 'oddsapi' ? fetchParticipants : null)));
 app.get('/props/:sport/:eventId', async (req, res) => {
   try { res.json(await ingestProps(req.params.sport, req.params.eventId)); } catch (e) { res.status(500).json({ error: (e as Error).message }); }
