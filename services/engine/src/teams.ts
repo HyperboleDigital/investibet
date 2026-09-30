@@ -63,6 +63,10 @@ export type TeamsReport = Record<string, { teams: number; aliased: number; fuzzy
 /** fetchParticipants is only worth its credit when lines come from The Odds API; pass null otherwise. */
 export async function importTeams(sb: SupabaseClient, fetchParticipants: ((sport: string) => Promise<Participant[]>) | null): Promise<TeamsReport> {
   const report: TeamsReport = {};
+  // Placeholder names briefly produced wrong fuzzy aliases and board rows; sweep any that were written
+  await sb.from('team_aliases').delete().like('odds_api_name', '%/%');
+  await sb.from('games').delete().like('home', '%/%');
+  await sb.from('games').delete().like('away', '%/%');
   for (const [sport, league] of Object.entries(SPORTS)) {
     const r = await fetch(`https://site.api.espn.com/apis/site/v2/sports/${ESPN[sport]}/teams?limit=1000`);
     if (!r.ok) { console.log('[teams] espn fail', league, r.status); continue; }
@@ -91,6 +95,7 @@ export async function importTeams(sb: SupabaseClient, fetchParticipants: ((sport
     const aliases: { odds_api_name: string; team_id: number }[] = [];
     for (const t of teams) { const id = idByEspn.get(t.id); if (id) aliases.push({ odds_api_name: t.displayName, team_id: id }); names.delete(t.displayName); }
     for (const name of names) {
+      if (name.includes('/')) continue; // postseason placeholder, not a team
       const m = match(name, teams);
       if (!m) { rep.unmatched.push(name); continue; }
       if (m.how !== 'exact') rep.fuzzy.push(`${name} -> ${m.t.displayName} (${m.how})`);

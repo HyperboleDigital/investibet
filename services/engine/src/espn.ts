@@ -46,6 +46,8 @@ export async function fetchSlate(sport: string, day: string): Promise<Slate> {
   for (const e of events) {
     const c = e.competitions[0]; const home = c.competitors.find(x => x.homeAway === 'home'); const away = c.competitors.find(x => x.homeAway === 'away');
     if (!home || !away) continue;
+    // Postseason placeholders ("Padres/Cubs" = winner of that series) are not games yet
+    if (home.team.displayName.includes('/') || away.team.displayName.includes('/')) continue;
     const id = gameId(e.id); const st = c.status.type;
     out.games.push({ id, sport_key: sport, league: SPORTS[sport], home: home.team.displayName, away: away.team.displayName, commence_time: e.date, updated_at: now });
     // Only a real final settles. Canceled and postponed games also report state "post", with 0-0.
