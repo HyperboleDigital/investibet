@@ -188,6 +188,7 @@ const ownedValue = (picks: Pick[], prices: Record<string, number>) =>
 function Home({ d, uid, cart, onToggle, onCup }: { d: ReturnType<typeof useData>; uid: string; cart: Leg[]; onToggle: (g: Game, l: Line) => void; onCup: () => void }) {
   const [league, setLeague] = useState('All'); const [filter, setFilter] = useState<'trending' | 'live'>('trending'); const [q, setQ] = useState('');
   const [propsFor, setPropsFor] = useState<string | null>(null); const [propLines, setPropLines] = useState<Line[]>([]);
+  const [openId, setOpenId] = useState<string | null>(null);
   const gm = useMemo(() => Object.fromEntries(d.games.map(g => [g.id, g])), [d.games]);
   const now = Date.now();
   const query = q.trim().toLowerCase();
@@ -229,7 +230,7 @@ function Home({ d, uid, cart, onToggle, onCup }: { d: ReturnType<typeof useData>
             : mk === 'h2h' ? `${name}, ${tail}`
             : mk === 'spreads' ? `${name} ${spoken(l.point ?? 0)}, ${tail}`
             : `${sel} ${l.point}, ${tail}`;
-          return <button key={mk} className={'mpill ' + (inCart ? 'sel' : has ? 'locked' : '')} disabled={locked || !l || !!has || !!opp} aria-label={label} aria-pressed={inCart} onClick={() => l && onToggle(g, l)}>
+          return <button key={mk} className={'mpill ' + (inCart ? 'sel' : has ? 'locked' : '')} disabled={locked || !l || !!has || !!opp} aria-label={label} aria-pressed={inCart} onClick={e => { e.stopPropagation(); if (l) onToggle(g, l); }}>
             {l ? <>
               {mk !== 'h2h' && <span className="ln">{mk === 'totals' ? `${i === 0 ? 'O' : 'U'} ${l.point}` : pt(l.point)}</span>}
               <span className="od">{basePoints(l.price)}<i className="u">pts</i></span>
@@ -241,19 +242,35 @@ function Home({ d, uid, cart, onToggle, onCup }: { d: ReturnType<typeof useData>
     </>;
   };
   const propsUi = (g: Game, locked: boolean) => <>
-    {ENABLE_PROPS && !locked && <button className="btn ghost sm" style={{ marginTop: 8 }} onClick={() => openProps(g)}>{propsFor === g.id ? 'Hide props' : 'Player props'}</button>}
+    {ENABLE_PROPS && !locked && <button className="btn ghost sm" style={{ marginTop: 8 }} onClick={e => { e.stopPropagation(); openProps(g); }}>{propsFor === g.id ? 'Hide props' : 'Player props'}</button>}
     {propsFor === g.id && <div style={{ marginTop: 8 }}>{propLines.length ? propLines.map(l => { const [player, stat, side] = l.selection.split('|'); const inCart = cart.some(x => legKey(x.line) === legKey(l));
-      return <button key={l.selection} className={'prop ' + (inCart ? 'sel' : '')} onClick={() => onToggle(g, l)}><div><div className="n">{player}</div><div className="s">{stat.replace(/^(player|batter|pitcher)_/, '').replace(/_/g, ' ')}</div></div><div className="s">{side} {l.point ?? ''}</div><div className="o">{oddsTxt(l.price)}</div></button>; })
+      return <button key={l.selection} className={'prop ' + (inCart ? 'sel' : '')} onClick={e => { e.stopPropagation(); onToggle(g, l); }}><div><div className="n">{player}</div><div className="s">{stat.replace(/^(player|batter|pitcher)_/, '').replace(/_/g, ' ')}</div></div><div className="s">{side} {l.point ?? ''}</div><div className="o">{oddsTxt(l.price)}</div></button>; })
       : <p className="hint">Loading props…</p>}</div>}
   </>;
 
   const card = (g: Game) => {
     const k = new Date(g.commence_time); const locked = k.getTime() <= now; const { day, time } = kickoffLabel(k);
-    return <div key={g.id} className="game">
+    return <div key={g.id} className="game tap" onClick={() => { setOpenId(g.id); scrollTo(0, 0); }}>
       {grid(g, locked)}{propsUi(g, locked)}
-      <div className="kick"><Symbol name="calendar" size={13} />{locked ? <b>In play</b> : `${day}, ${time}`}</div>
+      <div className="kick"><Symbol name="calendar" size={13} />{locked ? <b>In play</b> : `${day}, ${time}`}<span className="more-lines">More<Symbol name="chevron" size={12} /></span></div>
     </div>;
   };
+
+  // Game page: back arrow, centered matchup, Popular grid, props. Hard Rock's game screen, our markets.
+  const openGame = openId ? d.games.find(g => g.id === openId) : null;
+  if (openGame) {
+    const g = openGame;
+    const k = new Date(g.commence_time); const locked = g.completed || k.getTime() <= now; const { day, time } = kickoffLabel(k);
+    return <section className="view">
+      <button className="back" aria-label="Back to the board" onClick={() => setOpenId(null)}><Symbol name="arrowleft" size={20} /></button>
+      <div className="gp-title"><span>{team(g.away).short_name}</span><span className="at">@</span><span>{team(g.home).short_name}</span></div>
+      <div className="gp-kick"><Symbol name="calendar" size={13} />{g.completed ? `Final · ${g.away_score}-${g.home_score}` : locked ? <b>In play</b> : `${day}, ${time}`}<span>· {g.league}</span></div>
+      <div className="gp-sec">Popular</div>
+      <div className="game">{grid(g, locked)}</div>
+      {ENABLE_PROPS && !locked && <><div className="gp-sec">Player props</div><div className="game">{propsUi(g, locked)}</div></>}
+      <div className="disc">Alternate spread ladders, totals ladders and featured Stacks arrive when the lines source carries them. Odds lock the moment you tap Lock. Not affiliated with any league or team.</div>
+    </section>;
+  }
 
   // League sections, Hard Rock pattern: header with sport icon, capped list, View more lines
   const CAP = 4;
@@ -399,29 +416,86 @@ function BrokerSheet({ open, current, uid, onClose, onDone }: { open: boolean; c
   </div></>;
 }
 
-/* ---------- picks ---------- */
+/* ---------- picks: underlined tabs, Hard Rock cards, tap for detail ---------- */
+const statusChip = (p: Pick, live: boolean) =>
+  p.status === 'pending' ? <span className="res">{live ? 'Live' : 'Pending'}</span>
+  : p.status === 'won' ? <span className="res w">Won</span>
+  : p.status === 'lost' ? <span className="res l">Missed</span>
+  : <span className="res p">{p.status === 'push' ? 'Push' : 'Void'}</span>;
+const earnsTxt = (p: Pick) =>
+  p.status === 'won' ? `${Math.round(p.points)} pts` : p.status === 'pending' ? `${basePoints(p.odds)} pts` : '0 pts';
+const isLive = (p: Pick, g: Game) => p.status === 'pending' && !g.completed && new Date(g.commence_time) <= new Date();
+
 function Picks({ d, gm, say }: { d: ReturnType<typeof useData>; gm: Record<string, Game>; say: (m: string) => void }) {
-  const [arm, setArm] = useState<string | null>(null);
-  const cancel = async (p: Pick) => {
-    if (arm !== p.id) { setArm(p.id); setTimeout(() => setArm(a => (a === p.id ? null : a)), 3000); return; }
-    setArm(null);
+  const [tab, setTab] = useState<'all' | 'upcoming' | 'live' | 'finished'>('all');
+  const [selId, setSelId] = useState<string | null>(null);
+  const all = d.picks.filter(p => gm[p.game_id]);
+  const lists: Record<typeof tab, Pick[]> = {
+    all,
+    upcoming: all.filter(p => p.status === 'pending' && !isLive(p, gm[p.game_id])),
+    live: all.filter(p => isLive(p, gm[p.game_id])),
+    finished: all.filter(p => p.status !== 'pending'),
+  };
+  const list = lists[tab];
+  const EMPTY: Record<typeof tab, string> = {
+    all: 'No picks yet. Head to Home and back a side.',
+    upcoming: 'Nothing locked for later. The board is full of lines.',
+    live: 'No picks in play right now.',
+    finished: 'Nothing settled yet. Results land here when games go final.',
+  };
+  const sel = selId ? all.find(p => p.id === selId) ?? null : null;
+  return <section className="view"><h2 style={{ fontSize: 22 }}>Picks</h2>
+    <div className="tabs">{([['all', 'All'], ['upcoming', 'Upcoming'], ['live', 'Live'], ['finished', 'Finished']] as const).map(([k, l]) =>
+      <button key={k} className={tab === k ? 'on' : ''} onClick={() => setTab(k)}>{l}</button>)}</div>
+    {!list.length ? <div className="empty"><Symbol name="ticket" size={56} /><p>{EMPTY[tab]}</p></div>
+      : list.map(p => { const g = gm[p.game_id]; const live = isLive(p, g); const { day, time } = kickoffLabel(new Date(g.commence_time));
+        const val = p.shares && d.prices[p.ticker] ? Number(p.shares) * d.prices[p.ticker] : null;
+        return <button key={p.id} className={'pick ' + (p.status === 'won' ? 'won' : p.status === 'lost' ? 'lost' : '')} onClick={() => setSelId(p.id)}>
+          <div className="row"><div><div className="side">{legLabel(p)} <span className="odds-acc">{oddsTxt(p.odds)}</span></div>
+            <div className="eyebrow">{MARKET_LABEL[p.market] ?? p.market} · to hit</div>
+            <div className="meta">{gm[p.game_id].away} @ {gm[p.game_id].home}{g.completed ? ` · ${g.away_score}-${g.home_score}` : ''}</div></div>
+            {statusChip(p, live)}</div>
+          <div className="kick"><Symbol name="calendar" size={13} />{g.completed ? 'Final' : live ? <b>In play</b> : `${day}, ${time}`}</div>
+          <div className="se"><div><div className="l">Stake</div><div className="v">{fmt0(Number(p.stake))}</div></div><div><div className="l">Earns</div><div className="v">{earnsTxt(p)}</div></div></div>
+          <div className={'meta ' + (p.filled_at ? 'mint' : '')} style={{ marginTop: 10 }}>{p.filled_at ? `Bought ${Number(p.shares).toFixed(4)} ${p.ticker} at ${fmt(Number(p.fill_price))}${val != null ? ` · now ${fmt(val)}` : ''}` : `${fmt0(Number(p.stake))} of ${p.ticker} · buys at next market open`}</div>
+        </button>; })}
+    <PickSheet p={sel} g={sel ? gm[sel.game_id] : null} d={d} say={say} onClose={() => setSelId(null)} />
+  </section>;
+}
+
+/* ---------- pick detail sheet ---------- */
+function PickSheet({ p, g, d, say, onClose }: { p: Pick | null; g: Game | null; d: ReturnType<typeof useData>; say: (m: string) => void; onClose: () => void }) {
+  const [arm, setArm] = useState(false);
+  useEffect(() => { setArm(false); }, [p?.id]);
+  if (!p || !g) return <><div className="scrim" /><div className="sheet" /></>;
+  const live = isLive(p, g);
+  const { day, time } = kickoffLabel(new Date(g.commence_time));
+  const val = p.shares && d.prices[p.ticker] ? Number(p.shares) * d.prices[p.ticker] : null;
+  const stock = d.stocks.find(x => x.ticker === p.ticker);
+  const cancel = async () => {
+    if (!arm) { setArm(true); setTimeout(() => setArm(false), 3000); return; }
     const { error } = await sb.rpc('cancel_pick', { p_pick_id: p.id });
     say(error ? error.message.replace(/^.*?: /, '') : 'Pick cancelled');
-    if (!error) d.reload();
+    if (!error) { d.reload(); onClose(); }
   };
-  const list = d.picks.filter(p => gm[p.game_id]);
-  if (!list.length) return <section className="view"><h2 style={{ fontSize: 22 }}>Your picks</h2><div className="card"><div style={{ fontWeight: 700 }}>No picks yet</div><p className="hint" style={{ margin: '6px 0 0' }}>Head to Home and back a side.</p></div></section>;
-  return <section className="view"><h2 style={{ fontSize: 22 }}>Your picks</h2><p className="hint">Every stake is stock you own. Points land when the game goes final.</p>
-    {list.map(p => { const g = gm[p.game_id]; const won = p.status === 'won', lost = p.status === 'lost'; const live = p.status === 'pending' && new Date(g.commence_time) <= new Date();
-      const label = legLabel(p);
-      const val = p.shares && d.prices[p.ticker] ? Number(p.shares) * d.prices[p.ticker] : null;
-      return <div key={p.id} className={'pick ' + (won ? 'won' : lost ? 'lost' : '')}>
-        <div className="row"><div><div className="side">{label} {oddsTxt(p.odds)}</div><div className="meta">{g.away} at {g.home}{g.completed ? ` · ${g.away_score}-${g.home_score}` : ''}</div></div>
-          {p.status === 'pending' ? <span className="res">{live ? 'Live' : 'Pending'}</span> : won ? <span className="res w">Won · {Math.round(p.points)} pts</span> : lost ? <span className="res l">Missed</span> : <span className="res p">{p.status === 'push' ? 'Push' : 'Void'}</span>}</div>
-        <div className="meta" style={{ marginTop: 10 }}>{p.filled_at ? `Bought ${Number(p.shares).toFixed(4)} ${p.ticker} at ${fmt(Number(p.fill_price))}${val != null ? ` · now ${fmt(val)}` : ''}` : `${fmt0(Number(p.stake))} of ${p.ticker} · buys at next market open`}</div>
-        {p.status === 'pending' && !live && <button className="btn danger sm" style={{ marginTop: 10 }} onClick={() => cancel(p)}>{arm === p.id ? 'Tap again to cancel' : 'Cancel pick'}</button>}
-      </div>; })}
-  </section>;
+  return <><div className="scrim open" onClick={onClose} /><div className="sheet open">
+    <div className="grab" />
+    <div className="row"><div><div className="side" style={{ fontSize: 20 }}>{legLabel(p)} <span className="odds-acc">{oddsTxt(p.odds)}</span></div>
+      <div className="eyebrow">{MARKET_LABEL[p.market] ?? p.market} · to hit</div></div>{statusChip(p, live)}</div>
+    <div className="meta" style={{ marginTop: 6 }}>{g.away} @ {g.home}{g.completed ? ` · Final ${g.away_score}-${g.home_score}` : ''}</div>
+    <div className="kick"><Symbol name="calendar" size={13} />{g.completed ? 'Final' : live ? <b>In play</b> : `${day}, ${time}`}<span>· {g.league}</span></div>
+    <div className="se"><div><div className="l">Stake</div><div className="v">{fmt0(Number(p.stake))}</div></div><div><div className="l">Earns</div><div className="v">{earnsTxt(p)}</div></div></div>
+    {p.status === 'won' && Number(p.points) > basePoints(p.odds) && <div className="small" style={{ marginTop: 4 }}>{basePoints(p.odds)} base with the streak multiplier applied</div>}
+    <div className="card" style={{ margin: '14px 0 10px' }}>
+      <div style={{ fontWeight: 700 }}>{p.ticker}{stock ? ` · ${stock.name}` : ''}</div>
+      <div className="meta" style={{ marginTop: 6 }}>{p.filled_at ? `Bought ${Number(p.shares).toFixed(4)} shares at ${fmt(Number(p.fill_price))}` : `${fmt0(Number(p.stake))} buys at the next market open`}</div>
+      {val != null && <div className="meta mint" style={{ marginTop: 4 }}>Now worth {fmt(val)}</div>}
+      <div className="small" style={{ marginTop: 8 }}>Yours win or miss. The stake never goes to a book.</div>
+    </div>
+    <div className="pid">Pick ID {p.id.slice(0, 8)}<button style={{ minHeight: 24, color: 'var(--dim)' }} aria-label="Copy pick ID" onClick={() => { navigator.clipboard?.writeText(p.id); say('Copied'); }}><Symbol name="copy" size={13} /></button></div>
+    {p.status === 'pending' && !live && <button className="btn danger" style={{ marginTop: 12 }} onClick={cancel}>{arm ? 'Tap again to cancel' : 'Cancel pick'}</button>}
+    <button className="btn ghost" style={{ marginTop: 8 }} onClick={onClose}>Done</button>
+  </div></>;
 }
 
 /* ---------- cup ---------- */

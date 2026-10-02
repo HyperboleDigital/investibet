@@ -70,32 +70,34 @@ Reject from Hard Rock:
 
 ## 2. Tokens
 
-Canvas and surfaces (unchanged values, Partiful roles):
+Canvas and surfaces (light since Oct 2 PM, Owen's call: the product is light like the Hard Rock references, Partiful's native ground):
 
 | Token | Value | Role |
 |---|---|---|
-| `--bg` | `#0E1220` | Canvas. The "white marble", inverted. |
-| `--bg2` | `#151A2C` | Card surface. Floats by tone, not shadow. |
-| `--bg3` | `#1E2439` | Inset surface: pills, inputs, chips. |
-| `--line` | `#2A3149` | Hairlines. |
-| `--ink` | `#EEF0F8` | Primary text and the filled action color. |
-| `--muted` / `--dim` | `#8B92AB` / `#5C627A` | Secondary / tertiary text, legal. |
+| `--bg` | `#F2F3F7` | Canvas. iOS grouped-background gray. |
+| `--bg2` | `#FFFFFF` | Card surface. |
+| `--bg3` | `#ECEDF2` | Inset surface: pills, inputs, chips, odds pills. |
+| `--line` | `#E2E4EC` | Hairlines. |
+| `--ink` | `#171B2E` | Primary text and the filled action color. |
+| `--muted` / `--dim` | `#6F7590` / `#9CA1B6` | Secondary / tertiary text, legal. |
 
-Money and state colors, now strictly semantic (this is the change: mint is no longer the action color):
+Money and state colors, strictly semantic (mint is never the action color), darkened for contrast on white:
 
 | Token | Value | Only ever means |
 |---|---|---|
-| `--mint` | `#4FE3A8` | Ownership, gains, points, won. |
-| `--coral` | `#FF6B5B` | The sportsbook timeline; destructive confirms. Never a loss state. |
-| `--gold` | `#F5C451` | Streaks and pot. |
-| Tints | `*2` variants | State pill and panel backgrounds. |
+| `--mint` | `#0FA36E` | Ownership, gains, points, won. The accent on every odds pill. |
+| `--coral` | `#E8503A` | The sportsbook timeline; destructive confirms. Never a loss state. |
+| `--gold` | `#C08A14` | Streaks and pot. |
+| Tints | `*2` variants | State pill and panel backgrounds, ~10% alpha. |
 
-Washes (surfaces and overlays only, never interactive elements):
+Washes (surfaces and overlays only, never interactive elements), retuned up for the light canvas:
 
 | Token | Value | Use |
 |---|---|---|
-| `--wash-party` | `linear-gradient(160deg, rgba(248,196,255,.10), rgba(150,196,255,.05))` | Celebration surfaces: pot card, win reveal card, milestone and share cards, app-top glow. |
-| `--wash-calm` | `linear-gradient(180deg, rgba(150,196,255,.07), transparent)` | Quiet section lift: empty states, education cards. |
+| `--wash-party` | `linear-gradient(160deg, rgba(243,187,255,.30), rgba(150,196,255,.14))` | Celebration surfaces: pot card, win reveal card, milestone and share cards, app-top glow. |
+| `--wash-calm` | `linear-gradient(180deg, rgba(150,196,255,.14), transparent)` | Quiet section lift: empty states, education cards. |
+
+Floating shadow is `--float: 0 8px 24px rgba(23,27,46,.14)`, only on elements that float (nav, selection bar, toast, sheets).
 
 Type (system stack, tabular numerals, Dynamic Type support all stay locked):
 
@@ -145,6 +147,7 @@ Don't: color-fill a primary action; gradient a button, badge, or text; use more 
 5. **Selected chips were white-filled (this file, Sept 30); the Hard Rock adoption (Oct 2) changes them to outlined + tinted.** Segmented controls keep the white fill so the two states stay distinguishable. Revert is one CSS rule if it reads muddy on the phone.
 6. **The pick-flow mockup fills the Lock button mint.** Superseded by resolution 3 above: actions are white, mint means money. The mockup is content spec only.
 7. **Hard Rock's fifth tab is a cash balance.** We never show a cash balance; the slot is the initials avatar opening a balanceless Profile that leads with Owned.
+8. **Dark theme was locked Sept 28-30; Owen reversed it Oct 2 PM.** The product is light, matching the Hard Rock references and Partiful's native white ground. Primary actions are now ink-filled (dark button, white text, Partiful's original polarity). The section 1 "Reject: white canvas" line is void. Dark may return later as a mode, not the default.
 
 ## 6. Applying it
 
