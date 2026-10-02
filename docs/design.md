@@ -1,6 +1,12 @@
 # Investibet Design System (design.md)
 
-Adopted Sept 30, 2026. The visual authority for every screen going forward. Source: Refero style reference for Partiful (style 2849c1d3, partiful.com), adapted onto Investibet's locked constraints. This file supersedes the Sandclock-based token discipline in `investibet-design-direction.md` section 3; that doc's product-structure decisions (board anatomy from Turf and Sleeper, points-forward pills, reveal rules) stay in force.
+Adopted Sept 30, 2026; structure layer added Oct 2, 2026. The visual authority for every screen going forward. Source: Refero style reference for Partiful (style 2849c1d3, partiful.com), adapted onto Investibet's locked constraints. This file supersedes the Sandclock-based token discipline in `investibet-design-direction.md` section 3; that doc's product-structure decisions (points-forward pills, reveal rules) stay in force.
+
+Two references, two jobs:
+
+- **Partiful owns the visual layer**: tokens, color meaning, type, radii, washes, action hierarchy (section 1).
+- **Hard Rock Bet owns the structural layer**: chrome, layout patterns, and flow, from `docs/reference/hardrock/` (22 screenshots, Oct 2026). Copy structure, never brand: no Hard Rock purple, no logos, no team marks, no bet/wager/payout copy (section 1b).
+- `docs/reference/investibet-pick-flow-mockup.html` is the slip's **content spec** only: the Win / Miss / In 5 yrs trio, stock rows styled as odds lines with personality tags ("The favorite · steady"), the streak multiplier spelled out ("170 × 1.5x streak"), the sportsbook-comparison fine print, the disclaimer. Its mint-filled Lock button is superseded by this file's white primary action; content survives, skin does not.
 
 ## 1. Reference lock
 
@@ -28,6 +34,38 @@ Reject from Partiful:
     with Partiful's tracking, not a loaded webfont. Revisit only if Owen licenses a face.
   - Warm Sand active-nav accent: active nav is pure white here; gold is reserved for streaks and pot.
   - Emoji as UI (their RSVP circles): Symbol sprite only (locked).
+```
+
+## 1b. Reference lock: Hard Rock Bet structure
+
+```
+Structural reference: Hard Rock Bet iOS app, docs/reference/hardrock/ IMG_5065-5086
+Preserve from Hard Rock:
+  - Floating pill tab bar: capsule floating above the bottom edge, soft shadow, 5 slots,
+    icon + 11pt label, selected tab gets a filled pill highlight. Fifth slot is the
+    account: for them a balance, for us the initials avatar (we never show a cash balance).
+  - Top chrome: search field first, then a filter chip row (all-sports icon, Trending,
+    Live), then a league chip row with sport icons. Selected chip = outlined + tinted.
+  - Board: games grouped by league under a sport-icon header with "View more lines";
+    per game a two-row grid with three labeled market columns (SPREAD / TOTAL / WINNER);
+    kickoff line with calendar icon under each game.
+  - Floating selection bar: when 1+ legs are selected, a pill bar floats above the tab
+    bar ("2 picks" left, stake-earns line right). Picking never leaves the board.
+  - Slip: numpad with quick-add chips (+$5 +$10 +$25), big editable stake, two-column
+    Stake / Earns header, leg list with connecting line and remove icons.
+  - Locked celebration sheet: rising sheet, mark + "Locked in.", full slip card, then
+    stacked actions (Track, Share with friends, Done).
+  - Pick cards (My Bets pattern): selection + odds top row, "TO HIT" eyebrow, matchup,
+    kickoff, Stake | Earns columns, ID small, Share top right; All/Upcoming/Live/Finished
+    underlined tabs; centered line-art empty states with one sentence.
+  - Profile: stacked display-type name, initials avatar with edit pencil, cards for
+    account value and rewards, then a settings list with version number at bottom.
+Reject from Hard Rock:
+  - All branding: purple, logos, team marks, emoji (🤘), "bet/wager/payout/balance" copy.
+  - Promo noise: reward drops, odds boosts, mystery anything (locked: no chance-based
+    reveals). Our one promo slot rotates the Cup pot and milestone nudges only.
+  - Editorialized bet suggestions ("Popular Bets" built by the house). Our featured
+    Stacks are generated from most-picked legs, never editorialized.
 ```
 
 ## 2. Tokens
@@ -76,7 +114,14 @@ Radius: cards 12, sheets and modals 16, compact buttons 8, full-width buttons 12
 - **Primary button**: `--ink` fill, `--bg` text, weight 700, tracking -0.02em, radius 12 (full-width) or 8 (compact). Says exactly what it does ("Lock $20 on Eagles, Bears → NVDA"). One per screen.
 - **Ghost button**: transparent, 1px `--line` border, `--ink` text.
 - **Destructive**: coral tint fill, coral text, two-tap confirm.
-- **Chips and tabs**: pill container logic; the active item fills white with dark text, inactive items are `--bg3` with `--muted` text.
+- **Filter chips** (leagues, Trending, Live, stock tiers): pill, inactive is `--bg3` with `--muted` text; selected is outlined (`--ink` border) + tinted (`rgba(255,255,255,.1)`), Hard Rock's pattern in our monochrome. Changed Oct 2 from the white-fill rule.
+- **Segmented controls** (Month | Season, Stacks | Singles): the active segment fills white with dark text.
+- **Content tabs** (All | Upcoming | Live | Finished on Picks): underlined active tab, no pill.
+- **Floating pill tab bar**: capsule, `--bg2` at 96% over blur, 1px `--line`, floating shadow (it floats), radius 999. Active tab gets a `rgba(255,255,255,.09)` pill fill with `--ink` icon and label; inactive `--muted`. No mint in chrome. Fifth slot is the initials avatar on the periwinkle gradient, coral dot when something needs attention.
+- **Floating selection bar**: white pill, dark text, floating shadow, rises with a spring. Left "N picks" at weight 800, right "$X stake earns Y pts" with the points rolling. It is a primary action, so it is white (monochrome action rule), never mint.
+- **Promo card**: `--wash-party` over `--bg2`, dismissible x in a soft circle, one per screen, rotates Cup pot and milestone nudges only.
+- **League header**: sport icon + 17px/700 league name, ghost pill "View more lines" right.
+- **Slip trio** (from the pick-flow mockup): Win in `--mint` with the multiplier spelled out, Miss in neutral ("you still own $20 of NVDA"), In 5 yrs in `--gold`; sportsbook-comparison fine print in `--dim` beneath; disclaimer always.
 - **Status pills** (res chips): full pill, tinted background. Won = mint on `--mint2`. Push/Void = gold on `--gold2`. Missed = `--muted` on `rgba(255,255,255,.05)`; never red, the money did not go anywhere.
 - **Market pills** (mpill): unchanged anatomy (line, big mint points, odds and implied % beneath). Selected fills mint: allowed, selection is a money-semantic state, not chrome.
 - **Pot card**: `--wash-party` over `--bg2`. The one permanently celebratory surface.
@@ -97,7 +142,10 @@ Don't: color-fill a primary action; gradient a button, badge, or text; use more 
 2. **Partiful's brand lives in a custom display face; our standard is system font only (locked).** Resolution: SF Pro 800 with Partiful's tracking is the display voice. If Owen ever licenses a display font, it appears only at 26px and above, per Partiful's own rule.
 3. **Mint was previously the primary action color (direction doc section 3).** Changed by this adoption: actions are white, mint means money. This makes the Lock button white. Flagged to Owen at adoption; revert is one token if it feels wrong on the phone.
 4. **Warm Sand nav accent** rejected: collides with gold's locked meaning.
+5. **Selected chips were white-filled (this file, Sept 30); the Hard Rock adoption (Oct 2) changes them to outlined + tinted.** Segmented controls keep the white fill so the two states stay distinguishable. Revert is one CSS rule if it reads muddy on the phone.
+6. **The pick-flow mockup fills the Lock button mint.** Superseded by resolution 3 above: actions are white, mint means money. The mockup is content spec only.
+7. **Hard Rock's fifth tab is a cash balance.** We never show a cash balance; the slot is the initials avatar opening a balanceless Profile that leads with Owned.
 
 ## 6. Applying it
 
-`apps/web/src/styles.css` is the single skin; this adoption ships as a token and component pass there (no screen rewrites). Future sessions build components from section 3 recipes. The share card renderer (session 3) and milestone cards (session 5) use the white-card-on-wash language and the tilt scatter.
+`apps/web/src/styles.css` is the single skin; the Partiful adoption shipped as a token and component pass there, and the Hard Rock structure landed with the Oct 2 shell rebuild (floating tab bar, chips, selection bar, league-grouped board). Still to build from section 1b: the numpad slip, the locked celebration sheet, the Picks cards with underlined tabs, and the game page. The share card renderer (overhaul session 3) and milestone cards use the white-card-on-wash language and the tilt scatter.

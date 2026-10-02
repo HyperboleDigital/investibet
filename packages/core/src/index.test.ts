@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { basePoints, grade, scoreSequence, bestFifteen, potSplit, counterfactualDelta, implied } from './index';
+import { basePoints, grade, scoreSequence, bestFifteen, potSplit, counterfactualDelta, implied, decimalOdds, stackOdds, stackPoints, bookValue } from './index';
 
 describe('points', () => {
   it('equals the odds', () => { expect(basePoints(170)).toBe(170); expect(basePoints(-200)).toBe(50); expect(basePoints(-110)).toBe(91); });
@@ -36,6 +36,17 @@ describe('streaks and best 15', () => {
   });
 });
 
+describe('stacks', () => {
+  it('converts american to decimal', () => { expect(decimalOdds(150)).toBeCloseTo(2.5); expect(decimalOdds(-200)).toBeCloseTo(1.5); });
+  it('single leg passes through', () => { expect(stackOdds([100])).toBe(100); expect(stackOdds([-110])).toBe(-110); expect(stackOdds([600])).toBe(600); });
+  it('combines decimal odds and converts back', () => {
+    expect(stackOdds([-110, -110])).toBe(264);
+    expect(stackOdds([-110, -110, -110])).toBe(596);
+    expect(stackOdds([200, 150])).toBe(650);
+  });
+  it('stack points ride the flat $100 basis', () => { expect(stackPoints([200, 150])).toBe(650); expect(stackPoints([-110, -110])).toBe(264); });
+});
+
 describe('pot and counterfactual', () => {
   it('splits the pot to the dollar', () => {
     const s = potSplit([{ id: 'a', points: 300 }, { id: 'b', points: 100 }], 100);
@@ -43,5 +54,13 @@ describe('pot and counterfactual', () => {
   });
   it('sportsbook timeline', () => {
     expect(counterfactualDelta(20, 170, 'won')).toBeCloseTo(34); expect(counterfactualDelta(20, 170, 'lost')).toBe(-20); expect(counterfactualDelta(20, 170, 'push')).toBe(0);
+  });
+  it('book value keeps pending stakes in play and settles the rest', () => {
+    expect(bookValue([
+      { stake: 20, odds: 170, status: 'won' },
+      { stake: 20, odds: 170, status: 'lost' },
+      { stake: 20, odds: 170, status: 'pending' },
+    ])).toBeCloseTo(74);
+    expect(bookValue([])).toBe(0);
   });
 });

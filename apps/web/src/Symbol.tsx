@@ -18,6 +18,9 @@ const GLYPHS: Record<string, ReactElement> = {
   shield: P('M12 3l7 3v5.5c0 4.4-3 7.6-7 9.5-4-1.9-7-5.1-7-9.5V6z'),
   ticket: <><path d="M3 8a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v2a2 2 0 0 0 0 4v2a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-2a2 2 0 0 0 0-4z" /><path d="M14 6v12" strokeDasharray="2 3" /></>,
   lines: P('M3 4h18v16H3zM3 10h18M9 4v16'),
+  calendar: <><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M3 9.5h18M8 3v4M16 3v4" /></>,
+  live: <><circle cx="12" cy="12" r="2.4" fill="currentColor" stroke="none" /><path d="M7.5 7.5a6.4 6.4 0 0 0 0 9M16.5 7.5a6.4 6.4 0 0 1 0 9" /></>,
+  xmark: P('M6 6l12 12M18 6L6 18'),
   picks: P('M4 6h16v12H4zM8 10h8M8 14h5'),
   home: P('M3 12l9-8 9 8M5 10v10h14V10'),
 };

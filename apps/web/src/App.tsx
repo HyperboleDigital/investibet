@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useState, useCallback } from 'react';
+import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { sb, ENABLE_PROPS } from './lib/supabase';
 import Symbol from './Symbol';
-import { implied, basePoints, profit, potSplit, counterfactualDelta, project, marketOpen } from '@investibet/core';
+import { implied, basePoints, potSplit, project, marketOpen, stackOdds, stackPoints, bookValue } from '@investibet/core';
 
 /* ---------- types ---------- */
 type Game = { id: string; sport_key: string; league: string; home: string; away: string; commence_time: string; completed: boolean; home_score: number | null; away_score: number | null };
@@ -13,6 +13,7 @@ type Stock = { ticker: string; name: string; tier: number; avg_return_10y: numbe
 type Profile = { id: string; display_name: string; streak: number; weekly_cap: number | null };
 type LB = { user_id: string; display_name: string; streak: number; month: string; points: number | null; wins: number; losses: number };
 type Broker = { provider: string; connected: boolean } | null;
+type Leg = { game: Game; line: Line };
 
 const fmt = (n: number, d = 2) => (n < 0 ? '-' : '') + '$' + Math.abs(n).toLocaleString(undefined, { minimumFractionDigits: d, maximumFractionDigits: d });
 const fmt0 = (n: number) => fmt(n, 0);
@@ -22,6 +23,26 @@ const TIERS = ['Favorites', 'Value', 'Longshots'];
 const LEAGUES = ['All', 'NFL', 'NCAAF', 'NBA', 'NCAAB', 'MLB', 'NHL'];
 const BROKERS = [['webull', 'Webull'], ['public', 'Public'], ['moomoo', 'Moomoo']];
 const month = () => new Date().toISOString().slice(0, 7);
+const legKey = (l: Line) => [l.game_id, l.market, l.selection, l.point].join('|');
+const MARKET_LABEL: Record<string, string> = { h2h: 'Winner', spreads: 'Spread', totals: 'Total', prop: 'Prop' };
+const legLabel = (l: { market: string; selection: string; point: number | null }) =>
+  l.market === 'prop' ? l.selection.split('|')[0] + ' ' + l.selection.split('|')[2] + ' ' + (l.point ?? '') : l.selection + (l.market === 'h2h' ? '' : ' ' + pt(l.point));
+const initialsOf = (name: string) => name.trim().split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase() || 'U';
+
+/* ---------- rolling number: live values roll on change, still numbers under reduced motion ---------- */
+function Roll({ value, format = (n: number) => String(Math.round(n)) }: { value: number; format?: (n: number) => string }) {
+  const [disp, setDisp] = useState(value); const prev = useRef(value);
+  useEffect(() => {
+    const from = prev.current, to = value; prev.current = value;
+    if (from === to) return;
+    if (matchMedia('(prefers-reduced-motion: reduce)').matches) { setDisp(to); return; }
+    const t0 = performance.now(), dur = 600; let raf = 0;
+    const tick = (t: number) => { const k = Math.min(1, (t - t0) / dur); const e = 1 - Math.pow(1 - k, 3); setDisp(from + (to - from) * e); if (k < 1) raf = requestAnimationFrame(tick); };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [value]);
+  return <>{format(disp)}</>;
+}
 
 /* ---------- data hook ---------- */
 function useData(session: Session | null) {
@@ -88,31 +109,61 @@ function Gate() {
   </div></div>;
 }
 
+/* ---------- shell: 5-tab floating pill nav, selection cart, slip ---------- */
+type Tab = 'home' | 'picks' | 'cup' | 'owned' | 'profile';
+const TABS: [Tab, string, string][] = [['home', 'Home', 'home'], ['picks', 'Picks', 'ticket'], ['cup', 'The Cup', 'trophy'], ['owned', 'Owned', 'chart']];
+
 function Shell({ session }: { session: Session }) {
-  const d = useData(session); const [tab, setTab] = useState<'board' | 'picks' | 'cup' | 'home'>('board');
-  const [slip, setSlip] = useState<{ game: Game; line: Line } | null>(null); const [brokerOpen, setBrokerOpen] = useState(false);
+  const d = useData(session); const [tab, setTab] = useState<Tab>('home');
+  const [cart, setCart] = useState<Leg[]>([]); const [slipOpen, setSlipOpen] = useState(false); const [brokerOpen, setBrokerOpen] = useState(false);
+  const [stake, setStake] = useState(() => Number(localStorage.getItem('ib_stake')) || 20);
   const [toast, setToast] = useState(''); const say = (m: string) => { setToast(m); setTimeout(() => setToast(''), 1800); };
   const gm = useMemo(() => Object.fromEntries(d.games.map(g => [g.id, g])), [d.games]);
+
+  const toggleLeg = (game: Game, line: Line) => {
+    const k = legKey(line);
+    if (cart.some(x => legKey(x.line) === k)) {
+      const next = cart.filter(x => legKey(x.line) !== k);
+      setCart(next); if (!next.length) setSlipOpen(false);
+      return;
+    }
+    // picking the other side of a market you already selected swaps the leg
+    const base = cart.filter(x => !(x.line.game_id === line.game_id && x.line.market === line.market));
+    if (base.length >= 6) return say('Six legs is the max');
+    setCart([...base, { game, line }]);
+  };
+  const removeLeg = (i: number) => { const next = cart.filter((_, j) => j !== i); setCart(next); if (!next.length) setSlipOpen(false); };
+  const pts = cart.length ? stackPoints(cart.map(x => x.line.price)) : 0;
+
   return <>
-    <header><div className="brand">Investi<span>bet</span></div>
-      <button className={'pill ' + (d.broker?.connected ? 'mint' : '')} onClick={() => setBrokerOpen(true)}>{d.broker?.connected ? `${BROKERS.find(b => b[0] === d.broker!.provider)?.[1]} connected` : 'Connect brokerage'}</button></header>
-    {tab === 'board' && <Board d={d} gm={gm} onPick={(game, line) => d.broker?.connected ? setSlip({ game, line }) : setBrokerOpen(true)} />}
+    {tab === 'home' && <header><div className="brand">Investi<span>bet</span></div></header>}
+    {tab === 'home' && <Home d={d} uid={session.user.id} cart={cart} onToggle={toggleLeg} onCup={() => setTab('cup')} />}
     {tab === 'picks' && <Picks d={d} gm={gm} say={say} />}
     {tab === 'cup' && <Cup d={d} uid={session.user.id} />}
-    {tab === 'home' && <Home d={d} gm={gm} say={say} onBroker={() => setBrokerOpen(true)} />}
+    {tab === 'owned' && <Owned d={d} gm={gm} />}
+    {tab === 'profile' && <ProfileTab d={d} gm={gm} say={say} onBroker={() => setBrokerOpen(true)} />}
+    {cart.length > 0 && !slipOpen && <button className="selbar" onClick={() => setSlipOpen(true)}>
+      <span className="n">{cart.length} {cart.length === 1 ? 'pick' : 'picks'}</span>
+      <span className="e">{fmt0(stake)} stake earns <b><Roll value={pts} /> pts</b></span>
+    </button>}
     <nav>
-      {([['board', 'Lines', 'lines'], ['picks', 'Picks', 'picks'], ['cup', 'Cup', 'trophy'], ['home', 'Home', 'home']] as const).map(([k, l, ic]) => <button key={k} className={tab === k ? 'on' : ''} onClick={() => { setTab(k); scrollTo(0, 0); }}><Symbol name={ic} size={24} />{l}</button>)}
+      {TABS.map(([k, l, ic]) => <button key={k} className={tab === k ? 'on' : ''} aria-label={l} onClick={() => { setTab(k); scrollTo(0, 0); }}><Symbol name={ic} size={22} />{l}</button>)}
+      <button className={tab === 'profile' ? 'on' : ''} aria-label="Profile" onClick={() => { setTab('profile'); scrollTo(0, 0); }}>
+        <span className="avatar">{initialsOf(d.profile?.display_name ?? 'You')}{!d.broker?.connected && <i className="dot" />}</span>Profile
+      </button>
     </nav>
-    <button className="fb" onClick={async () => { const t = prompt('What sucked? Be blunt.'); if (!t) return; await sb.from('feedback').insert({ user_id: session.user.id, text: t.slice(0, 500), screen: tab }); say('Sent. Thanks.'); }}>What sucked?</button>
+    {!cart.length && <button className="fb" onClick={async () => { const t = prompt('What sucked? Be blunt.'); if (!t) return; await sb.from('feedback').insert({ user_id: session.user.id, text: t.slice(0, 500), screen: tab }); say('Sent. Thanks.'); }}>What sucked?</button>}
     <div className={'toast ' + (toast ? 'on' : '')}>{toast}</div>
-    <Slip d={d} slip={slip} onClose={() => setSlip(null)} say={say} />
+    <Slip d={d} legs={slipOpen ? cart : []} stake={stake} setStake={setStake} onRemove={removeLeg} onClose={() => setSlipOpen(false)} say={say}
+      brokerConnected={!!d.broker?.connected} onNeedBroker={() => setBrokerOpen(true)}
+      onLocked={() => { setCart([]); setSlipOpen(false); d.reload(); }} />
     <BrokerSheet open={brokerOpen} current={d.broker} uid={session.user.id} onClose={() => setBrokerOpen(false)} onDone={() => { d.reload(); say('Connected (simulated)'); }} />
     <Reveals d={d} gm={gm} />
   </>;
 }
 
-/* ---------- board ---------- */
-const MKS: [string, string][] = [['spreads', 'Spread'], ['totals', 'Total'], ['h2h', 'ML']];
+/* ---------- board helpers ---------- */
+const MKS: [string, string][] = [['spreads', 'Spread'], ['totals', 'Total'], ['h2h', 'Winner']];
 const LEAGUE_ICONS: Record<string, string> = { All: 'sportscourt', NFL: 'football', NCAAF: 'football', NBA: 'basketball', NCAAB: 'basketball', MLB: 'baseball', NHL: 'puck' };
 const shortName = (t: string) => t.split(' ').slice(-1)[0];
 const spoken = (n: number) => (n > 0 ? 'plus ' : 'minus ') + Math.abs(n);
@@ -129,13 +180,21 @@ const kickoffLabel = (k: Date) => {
     : k.toDateString() === tomorrow.toDateString() ? 'Tomorrow' : k.toLocaleDateString(undefined, { weekday: 'short' });
   return { day, time: k.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }) };
 };
+const sameWeek = (iso: string) => { const a = new Date(iso), b = new Date(); const wk = (x: Date) => { const d = new Date(x); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return d.getTime(); }; return wk(a) === wk(b); };
+const ownedValue = (picks: Pick[], prices: Record<string, number>) =>
+  picks.reduce((s, p) => s + (p.shares && prices[p.ticker] ? Number(p.shares) * prices[p.ticker] : Number(p.stake)), 0);
 
-function Board({ d, gm, onPick }: { d: ReturnType<typeof useData>; gm: Record<string, Game>; onPick: (g: Game, l: Line) => void }) {
-  const [league, setLeague] = useState('All'); const [q, setQ] = useState(''); const [propsFor, setPropsFor] = useState<string | null>(null); const [propLines, setPropLines] = useState<Line[]>([]);
+/* ---------- home: chrome, hero, promo, league-grouped board ---------- */
+function Home({ d, uid, cart, onToggle, onCup }: { d: ReturnType<typeof useData>; uid: string; cart: Leg[]; onToggle: (g: Game, l: Line) => void; onCup: () => void }) {
+  const [league, setLeague] = useState('All'); const [filter, setFilter] = useState<'trending' | 'live'>('trending'); const [q, setQ] = useState('');
+  const [propsFor, setPropsFor] = useState<string | null>(null); const [propLines, setPropLines] = useState<Line[]>([]);
+  const gm = useMemo(() => Object.fromEntries(d.games.map(g => [g.id, g])), [d.games]);
   const now = Date.now();
   const query = q.trim().toLowerCase();
   const upcoming = d.games.filter(g => !g.completed && new Date(g.commence_time).getTime() > now - 4 * 3600e3);
-  const list = (query ? upcoming.filter(g => `${g.away} ${g.home} ${g.league}`.toLowerCase().includes(query)) : upcoming.filter(g => league === 'All' || g.league === league)).slice(0, 60);
+  const live = upcoming.filter(g => new Date(g.commence_time).getTime() <= now);
+  const pool = filter === 'live' ? live : upcoming;
+  const list = query ? upcoming.filter(g => `${g.away} ${g.home} ${g.league}`.toLowerCase().includes(query)) : pool;
   const team = (name: string): TeamInfo => d.teams[name] ?? fallbackTeam(name);
   const lineFor = (g: Game, market: string, sel: string) => d.lines.find(l => l.game_id === g.id && l.market === market && l.selection === sel);
   const openProps = async (g: Game) => {
@@ -145,11 +204,17 @@ function Board({ d, gm, onPick }: { d: ReturnType<typeof useData>; gm: Record<st
     const { data } = await sb.from('lines').select('game_id, market, selection, point, price').eq('game_id', g.id).eq('market', 'prop');
     setPropLines((data ?? []) as Line[]);
   };
-  const weekStaked = d.picks.filter(p => gm[p.game_id] && sameWeek(gm[p.game_id].commence_time)).reduce((s, p) => s + Number(p.stake), 0);
 
-  // Market grid: one row per side, Spread / Total / ML. Shared by the Tonight ticket and plain cards.
+  const mine = d.picks.filter(p => gm[p.game_id]);
+  const value = ownedValue(mine, d.prices);
+  const book = bookValue(mine.map(p => ({ stake: Number(p.stake), odds: p.odds, status: p.status as any })));
+  const weekStaked = mine.filter(p => gm[p.game_id] && sameWeek(gm[p.game_id].commence_time)).reduce((s, p) => s + Number(p.stake), 0);
+  const streak = d.profile?.streak ?? 0;
+  const stockHits = query ? d.stocks.filter(x => x.ticker.toLowerCase().includes(query) || x.name.toLowerCase().includes(query)).slice(0, 5) : [];
+
+  // Market grid: one row per side, Spread / Total / Winner, points leading every pill
   const grid = (g: Game, locked: boolean) => {
-    const mine = d.picks.filter(p => p.game_id === g.id);
+    const myPicks = d.picks.filter(p => p.game_id === g.id);
     return <>
       <div className="mhead" aria-hidden="true"><span />{MKS.map(([k, l]) => <span key={k}>{l}</span>)}</div>
       {[g.away, g.home].map((name, i) => { const t = team(name); return <div className="mrow" key={name}>
@@ -157,14 +222,14 @@ function Board({ d, gm, onPick }: { d: ReturnType<typeof useData>; gm: Record<st
         {MKS.map(([mk]) => {
           const sel = mk === 'totals' ? (i === 0 ? 'Over' : 'Under') : name;
           const l = lineFor(g, mk, sel);
-          const has = mine.find(p => p.market === mk && p.selection === sel); const opp = mine.find(p => p.market === mk && p.selection !== sel);
+          const has = myPicks.find(p => p.market === mk && p.selection === sel); const opp = myPicks.find(p => p.market === mk && p.selection !== sel);
+          const inCart = !!l && cart.some(x => legKey(x.line) === legKey(l));
           const tail = l ? `${basePoints(l.price)} points, ${spoken(l.price)}, ${Math.round(implied(l.price) * 100)} percent implied` : '';
           const label = !l ? `${mk === 'totals' ? sel : name}, no line`
             : mk === 'h2h' ? `${name}, ${tail}`
             : mk === 'spreads' ? `${name} ${spoken(l.point ?? 0)}, ${tail}`
             : `${sel} ${l.point}, ${tail}`;
-          // Points lead, the line stays legible underneath: our currency up front, the sportsbook number for reference
-          return <button key={mk} className={'mpill ' + (has ? 'sel' : '')} disabled={locked || !l || !!opp} aria-label={label} aria-pressed={!!has} onClick={() => l && onPick(g, l)}>
+          return <button key={mk} className={'mpill ' + (inCart ? 'sel' : has ? 'locked' : '')} disabled={locked || !l || !!has || !!opp} aria-label={label} aria-pressed={inCart} onClick={() => l && onToggle(g, l)}>
             {l ? <>
               {mk !== 'h2h' && <span className="ln">{mk === 'totals' ? `${i === 0 ? 'O' : 'U'} ${l.point}` : pt(l.point)}</span>}
               <span className="od">{basePoints(l.price)}<i className="u">pts</i></span>
@@ -177,70 +242,139 @@ function Board({ d, gm, onPick }: { d: ReturnType<typeof useData>; gm: Record<st
   };
   const propsUi = (g: Game, locked: boolean) => <>
     {ENABLE_PROPS && !locked && <button className="btn ghost sm" style={{ marginTop: 8 }} onClick={() => openProps(g)}>{propsFor === g.id ? 'Hide props' : 'Player props'}</button>}
-    {propsFor === g.id && <div style={{ marginTop: 8 }}>{propLines.length ? propLines.map(l => { const [player, stat, side] = l.selection.split('|'); const has = d.picks.find(p => p.game_id === g.id && p.selection === l.selection);
-      return <button key={l.selection} className={'prop ' + (has ? 'sel' : '')} onClick={() => onPick(g, l)}><div><div className="n">{player}</div><div className="s">{stat.replace(/^(player|batter|pitcher)_/, '').replace(/_/g, ' ')}</div></div><div className="s">{side} {l.point ?? ''}</div><div className="o">{oddsTxt(l.price)}</div></button>; })
+    {propsFor === g.id && <div style={{ marginTop: 8 }}>{propLines.length ? propLines.map(l => { const [player, stat, side] = l.selection.split('|'); const inCart = cart.some(x => legKey(x.line) === legKey(l));
+      return <button key={l.selection} className={'prop ' + (inCart ? 'sel' : '')} onClick={() => onToggle(g, l)}><div><div className="n">{player}</div><div className="s">{stat.replace(/^(player|batter|pitcher)_/, '').replace(/_/g, ' ')}</div></div><div className="s">{side} {l.point ?? ''}</div><div className="o">{oddsTxt(l.price)}</div></button>; })
       : <p className="hint">Loading props…</p>}</div>}
   </>;
 
-  // Uniform cards under Starting soon / Upcoming / In play. No hero treatment; the sort finds tonight's game.
-  const open = list.filter(g => new Date(g.commence_time).getTime() > now);
-  const live = list.filter(g => new Date(g.commence_time).getTime() <= now);
-  const soon = open.filter(g => new Date(g.commence_time).getTime() - now <= 90 * 60e3);
-  const later = open.filter(g => new Date(g.commence_time).getTime() - now > 90 * 60e3);
-  const sections: [string, Game[], boolean][] = [['Starting soon', soon, false], ['Upcoming', later, false], ['In play', live, true]];
-  const labelled = sections.filter(s => s[1].length).length > 1;
   const card = (g: Game) => {
     const k = new Date(g.commence_time); const locked = k.getTime() <= now; const { day, time } = kickoffLabel(k);
     return <div key={g.id} className="game">
-      <div className="when">{g.league} · {locked ? <b>In play</b> : `${day} ${time}`}</div>
       {grid(g, locked)}{propsUi(g, locked)}
+      <div className="kick"><Symbol name="calendar" size={13} />{locked ? <b>In play</b> : `${day}, ${time}`}</div>
     </div>;
   };
 
+  // League sections, Hard Rock pattern: header with sport icon, capped list, View more lines
+  const CAP = 4;
+  const sections: [string, Game[]][] = (league === 'All' ? LEAGUES.slice(1) : [league])
+    .map(lg => [lg, list.filter(g => g.league === lg)] as [string, Game[]])
+    .filter(([, gs]) => gs.length > 0);
+
   return <section className="view">
-    <div className="row"><h2 style={{ fontSize: 22 }}>Lines</h2><span className="small">{d.profile?.weekly_cap ? `${fmt0(weekStaked)} of ${fmt0(Number(d.profile.weekly_cap))} this week` : `${fmt0(weekStaked)} staked this week`}</span></div>
-    <div className="chips">{LEAGUES.map(l => <button key={l} className={'chip ' + (league === l && !query ? 'on' : '')} aria-pressed={league === l && !query} onClick={() => { setLeague(l); setQ(''); }}><Symbol name={LEAGUE_ICONS[l]} size={15} />{l}</button>)}</div>
-    <div className="searchbar"><Symbol name="magnifyingglass" size={16} /><input className="search" placeholder="Search team or matchup" aria-label="Search team or matchup" value={q} onChange={e => setQ(e.target.value)} /></div>
+    <div className="searchbar"><Symbol name="magnifyingglass" size={16} /><input className="search" placeholder="Find a game or stock" aria-label="Find a game or stock" value={q} onChange={e => setQ(e.target.value)} /></div>
+    <div className="chips">
+      <button className={'chip ' + (league === 'All' && filter === 'trending' && !query ? 'on' : '')} aria-label="All sports" onClick={() => { setLeague('All'); setFilter('trending'); setQ(''); }}><Symbol name="sportscourt" size={15} /></button>
+      <button className={'chip ' + (filter === 'trending' && !query ? 'on' : '')} aria-pressed={filter === 'trending'} onClick={() => { setFilter('trending'); setQ(''); }}><Symbol name="chart" size={15} />Trending</button>
+      <button className={'chip ' + (filter === 'live' && !query ? 'on' : '')} aria-pressed={filter === 'live'} onClick={() => { setFilter('live'); setQ(''); }}><Symbol name="live" size={15} />Live{live.length ? ` · ${live.length}` : ''}</button>
+    </div>
+    <div className="chips">{LEAGUES.slice(1).map(l => <button key={l} className={'chip ' + (league === l && !query ? 'on' : '')} aria-pressed={league === l && !query} onClick={() => { setLeague(league === l ? 'All' : l); setQ(''); }}><Symbol name={LEAGUE_ICONS[l]} size={15} />{l}</button>)}</div>
+
+    <div className="hero2">
+      <div className="hx">
+        <div className="l">You own</div>
+        <div className="v"><Roll value={value} format={fmt0} /></div>
+        {mine.length ? <div className="b">A sportsbook timeline would be <b>{fmt0(book)}</b></div>
+          : <div className="b muted">Back a pick. The stake buys stock you keep either way.</div>}
+        <div className="s">{d.profile?.weekly_cap ? `${fmt0(weekStaked)} of ${fmt0(Number(d.profile.weekly_cap))} staked this week` : `${fmt0(weekStaked)} staked this week`}</div>
+      </div>
+      <div className={'flamebox ' + (streak >= 3 ? 'hot' : '')} aria-label={`Streak ${streak}`}><Symbol name="flame" size={22} /><span>{streak}</span></div>
+    </div>
+
+    <Promo d={d} uid={uid} invested={mine.reduce((s, p) => s + Number(p.stake), 0)} onCup={onCup} />
+
     {!upcoming.length && <div className="card"><div style={{ fontWeight: 700 }}>No lines yet</div><p className="hint" style={{ margin: '6px 0 0' }}>Lines refresh every few hours. If this is a fresh install, the engine is still pulling the first slate.</p></div>}
-    {query && upcoming.length > 0 && !list.length && <div className="card"><div style={{ fontWeight: 700 }}>No games match "{q.trim()}"</div><p className="hint" style={{ margin: '6px 0 0' }}>Try the team name or city, or clear the search.</p></div>}
-    {sections.map(([label, items, isLive]) => items.length ? <div key={label}>
-      {labelled && <div className="divider">{isLive && <span className="dot" />}{label}</div>}
-      {items.map(card)}
-    </div> : null)}
-    <div className="disc">Lines come from one major sportsbook via public scoreboard data, refreshed hourly. Odds lock the moment you tap Lock. Team names identify games and are trademarks of their owners. Investibet is not affiliated with any league or team.</div>
+    {query && !list.length && !stockHits.length && <div className="card"><div style={{ fontWeight: 700 }}>Nothing matches "{q.trim()}"</div><p className="hint" style={{ margin: '6px 0 0' }}>Try the team name, city, or a ticker, or clear the search.</p></div>}
+    {filter === 'live' && !query && !live.length && <div className="card"><div style={{ fontWeight: 700 }}>Nothing in play right now</div><p className="hint" style={{ margin: '6px 0 0' }}>Check Trending for what starts next.</p></div>}
+
+    {sections.map(([lg, gs]) => <div key={lg}>
+      <div className="lg-head"><Symbol name={LEAGUE_ICONS[lg]} size={16} /><h3>{lg}</h3>
+        {league === 'All' && gs.length > CAP && <button className="more" onClick={() => { setLeague(lg); scrollTo(0, 0); }}>View more lines</button>}
+      </div>
+      {(league === 'All' ? gs.slice(0, CAP) : gs).map(card)}
+    </div>)}
+
+    {stockHits.length > 0 && <div>
+      <div className="lg-head"><Symbol name="chart" size={16} /><h3>Stocks</h3></div>
+      {stockHits.map(x => <div key={x.ticker} className="card srow-info"><div className="tk">{x.ticker}</div><div className="nm">{x.name}</div><div><div className="ln">+{x.avg_return_10y}%/yr</div><div className="dd">worst drop {x.max_drawdown}%</div></div></div>)}
+      <p className="hint">Back any pick and your stake can buy it.</p>
+    </div>}
+
+    <div className="disc">Lines come from one major sportsbook via public scoreboard data, refreshed hourly. Odds lock the moment you tap Lock. Team names identify games and are trademarks of their owners. Investibet is not affiliated with any league or team. Projections are hypothetical, never advice.</div>
   </section>;
 }
-const sameWeek = (iso: string) => { const a = new Date(iso), b = new Date(); const wk = (x: Date) => { const d = new Date(x); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return d.getTime(); }; return wk(a) === wk(b); };
 
-/* ---------- slip ---------- */
-function Slip({ d, slip, onClose, say }: { d: ReturnType<typeof useData>; slip: { game: Game; line: Line } | null; onClose: () => void; say: (m: string) => void }) {
-  const [stake, setStake] = useState(() => Number(localStorage.getItem('ib_stake')) || 20); const [ticker, setTicker] = useState<string | null>(null);
+/* ---------- promo card: pot race or milestone nudge, dismissible for the day ---------- */
+function Promo({ d, uid, invested, onCup }: { d: ReturnType<typeof useData>; uid: string; invested: number; onCup: () => void }) {
+  const [hidden, setHidden] = useState(() => localStorage.getItem('ib_promo') === new Date().toDateString());
+  if (hidden) return null;
+  const dismiss = (e: { stopPropagation(): void }) => { e.stopPropagation(); localStorage.setItem('ib_promo', new Date().toDateString()); setHidden(true); };
+  const rows = d.lb.map(r => ({ id: r.user_id, points: Number(r.points ?? 0) }));
+  const split = potSplit(rows, d.pot); const mine = split[uid] ?? 0; const pct = d.pot ? (mine / d.pot) * 100 : 0;
+  const nextMilestone = [100, 500, 1000].find(m => m > invested);
+  const showPot = new Date().getDate() % 2 === 1 || !nextMilestone;
+  const monthName = new Date(month() + '-02').toLocaleString(undefined, { month: 'long' });
+  return <button className="promo" onClick={onCup}>
+    {showPot ? <div className="px">
+      <div className="t">{fmt0(d.pot)} {monthName} pot</div>
+      <div className="s">{mine > 0 ? <>You hold <b className="mint">{pct.toFixed(1)}%</b> of it right now</> : 'Settle a pick this month to claim a share'}</div>
+    </div> : <div className="px">
+      <div className="t">{fmt0(invested)} invested so far</div>
+      <div className="s">{fmt0(nextMilestone!)} invested unlocks a milestone card</div>
+    </div>}
+    <span className="x" role="button" aria-label="Dismiss" onClick={dismiss}><Symbol name="xmark" size={14} /></span>
+  </button>;
+}
+
+/* ---------- slip: single leg locks today, multi-leg previews the Stack ---------- */
+function Slip({ d, legs, stake, setStake, onRemove, onClose, onLocked, say, brokerConnected, onNeedBroker }: {
+  d: ReturnType<typeof useData>; legs: Leg[]; stake: number; setStake: (n: number) => void; onRemove: (i: number) => void;
+  onClose: () => void; onLocked: () => void; say: (m: string) => void; brokerConnected: boolean; onNeedBroker: () => void;
+}) {
+  const [ticker, setTicker] = useState<string | null>(null);
   const [tier, setTier] = useState(0); const [q, setQ] = useState(''); const [busy, setBusy] = useState(false);
-  useEffect(() => { if (slip) { setTicker(null); setQ(''); setTier(0); } }, [slip]);
-  if (!slip) return <><div className="scrim" /><div className="sheet" /></>;
-  const { game, line } = slip; const s = d.stocks.find(x => x.ticker === ticker);
-  const label = line.market === 'prop' ? line.selection.split('|')[0] + ' ' + line.selection.split('|')[2] + ' ' + (line.point ?? '') : line.selection + (line.market === 'h2h' ? '' : ' ' + pt(line.point));
+  const open = legs.length > 0;
+  useEffect(() => { if (open) { setTicker(null); setQ(''); setTier(0); } }, [open]);
+  if (!open) return <><div className="scrim" /><div className="sheet" /></>;
+  const single = legs.length === 1 ? legs[0] : null;
+  const combined = stackOdds(legs.map(x => x.line.price));
+  const points = stackPoints(legs.map(x => x.line.price));
+  const s = d.stocks.find(x => x.ticker === ticker);
   const list = d.stocks.filter(x => q ? x.ticker.toLowerCase().includes(q.toLowerCase()) || x.name.toLowerCase().includes(q.toLowerCase()) : x.tier === tier).sort((a, b) => a.ticker.localeCompare(b.ticker));
   const lock = async () => {
-    if (!ticker) return; setBusy(true); localStorage.setItem('ib_stake', String(stake));
-    const { error } = await sb.rpc('lock_pick', { p_game_id: game.id, p_market: line.market, p_selection: line.selection, p_stake: stake, p_ticker: ticker });
+    if (!single || !ticker) return;
+    if (!brokerConnected) return onNeedBroker();
+    setBusy(true); localStorage.setItem('ib_stake', String(stake));
+    const { error } = await sb.rpc('lock_pick', { p_game_id: single.game.id, p_market: single.line.market, p_selection: single.line.selection, p_stake: stake, p_ticker: ticker });
     setBusy(false); if (error) return say(error.message.replace(/^.*?: /, ''));
-    navigator.vibrate?.(30); say(marketOpen(new Date()) ? `Locked. Buying ${ticker} now` : `Locked. ${ticker} buys at next market open`); onClose(); d.reload();
+    navigator.vibrate?.(30); say(marketOpen(new Date()) ? `Locked. Buying ${ticker} now` : `Locked. ${ticker} buys at next market open`); onLocked();
   };
   return <><div className="scrim open" onClick={onClose} /><div className="sheet open">
     <div className="grab" />
-    <div className="slip-head"><div className="t">{label}</div><div className="o">{oddsTxt(line.price)}</div></div>
-    <div className="small">{game.away} at {game.home} · {Math.round(implied(line.price) * 100)}% implied · {basePoints(line.price)} pts if it hits</div>
-    <div className="stake">{fmt0(stake)}</div>
-    <input type="range" min={5} max={100} step={5} value={stake} onChange={e => setStake(+e.target.value)} aria-label="Stake" />
-    <div className="trio"><div><div className="l">Win</div><div className="v mint">{basePoints(line.price)} pts</div></div><div><div className="l">Lose</div><div className="v gold">keep {fmt0(stake)}</div></div><div><div className="l">In 5 years</div><div className="v">{s ? '~' + fmt0(project(stake, s.avg_return_10y, 5)) : 'pick a stock'}</div></div></div>
-    <div style={{ fontWeight: 700, marginBottom: 6 }}>What does it buy?</div>
-    <div className="chips">{TIERS.map((t, i) => <button key={t} className={'chip ' + (tier === i && !q ? 'on' : '')} onClick={() => { setTier(i); setQ(''); }}>{t}</button>)}</div>
-    <input className="search" placeholder="Search tickers" value={q} onChange={e => setQ(e.target.value)} />
-    {list.map(x => <button key={x.ticker} className={'srow ' + (ticker === x.ticker ? 'sel' : '')} onClick={() => setTicker(x.ticker)}><div className="tk">{x.ticker}</div><div className="nm">{x.name}</div><div><div className="ln">+{x.avg_return_10y}%/yr</div><div className="dd">worst drop {x.max_drawdown}%</div></div></button>)}
-    <div style={{ height: 12 }} />
-    <button className="btn" disabled={!ticker || busy} onClick={lock}>{busy ? 'Locking…' : ticker ? `Lock ${fmt0(stake)} on ${line.selection.split('|')[0]} → ${ticker}` : 'Pick a stock to lock'}</button>
-    <div className="disc">Odds lock now. During beta the buy is simulated at the next market price. Lines are approximate 10-year averages and worst peak-to-trough drops. Not advice.</div>
+    <div className="slip-head"><div className="t">{single ? legLabel(single.line) : `${legs.length}-leg Stack`}</div><div className="o">{oddsTxt(combined)}</div></div>
+    {single ? <div className="small">{single.game.away} at {single.game.home} · {Math.round(implied(single.line.price) * 100)}% implied · {points} pts if it hits</div>
+      : <div className="legs">{legs.map((x, i) => <div className="legrow" key={legKey(x.line)}>
+          <div className="lx"><div className="n">{legLabel(x.line)}</div><div className="s">{MARKET_LABEL[x.line.market] ?? x.line.market} · {x.game.away} at {x.game.home}</div></div>
+          <div className="o">{oddsTxt(x.line.price)}</div>
+          <button className="rm" aria-label="Remove leg" onClick={() => onRemove(i)}><Symbol name="xmark" size={14} /></button>
+        </div>)}
+        <div className="small" style={{ marginTop: 8 }}>Combined {oddsTxt(combined)} · <b className="mint">{points} pts</b> if every leg hits</div>
+      </div>}
+    {single ? <>
+      <div className="stake">{fmt0(stake)}</div>
+      <input type="range" min={5} max={100} step={5} value={stake} onChange={e => setStake(+e.target.value)} aria-label="Stake" />
+      <div className="trio"><div><div className="l">Win</div><div className="v mint">{points} pts</div></div><div><div className="l">Miss</div><div className="v">keep {fmt0(stake)}</div></div><div><div className="l">In 5 years</div><div className="v gold">{s ? '~' + fmt0(project(stake, s.avg_return_10y, 5)) : 'pick a stock'}</div></div></div>
+      <div style={{ fontWeight: 700, marginBottom: 6 }}>What does it buy?</div>
+      <div className="chips">{TIERS.map((t, i) => <button key={t} className={'chip ' + (tier === i && !q ? 'on' : '')} onClick={() => { setTier(i); setQ(''); }}>{t}</button>)}</div>
+      <input className="search" placeholder="Search tickers" value={q} onChange={e => setQ(e.target.value)} />
+      {list.map(x => <button key={x.ticker} className={'srow ' + (ticker === x.ticker ? 'sel' : '')} onClick={() => setTicker(x.ticker)}><div className="tk">{x.ticker}</div><div className="nm">{x.name}</div><div><div className="ln">+{x.avg_return_10y}%/yr</div><div className="dd">worst drop {x.max_drawdown}%</div></div></button>)}
+      <div style={{ height: 12 }} />
+      <button className="btn" disabled={!ticker || busy} onClick={lock}>{busy ? 'Locking…' : !brokerConnected && ticker ? 'Connect brokerage to lock' : ticker ? `Lock ${fmt0(stake)} on ${single.line.selection.split('|')[0]} → ${ticker}` : 'Pick a stock to lock'}</button>
+      <div className="disc">Odds lock now. During beta the buy is simulated at the next market price. Lines are approximate 10-year averages and worst peak-to-trough drops. Not advice.</div>
+    </> : <>
+      <div className="card" style={{ marginTop: 14 }}><div style={{ fontWeight: 700 }}>Stacks lock in the next build</div><p className="hint" style={{ margin: '6px 0 0' }}>One stake, one stock, every leg must hit. For now, trim to one leg to lock a single pick.</p></div>
+      <button className="btn" disabled>Stack locking coming next</button>
+    </>}
   </div></>;
 }
 
@@ -276,10 +410,10 @@ function Picks({ d, gm, say }: { d: ReturnType<typeof useData>; gm: Record<strin
     if (!error) d.reload();
   };
   const list = d.picks.filter(p => gm[p.game_id]);
-  if (!list.length) return <section className="view"><h2 style={{ fontSize: 22 }}>Your picks</h2><div className="card"><div style={{ fontWeight: 700 }}>No picks yet</div><p className="hint" style={{ margin: '6px 0 0' }}>Head to Lines and back a side.</p></div></section>;
+  if (!list.length) return <section className="view"><h2 style={{ fontSize: 22 }}>Your picks</h2><div className="card"><div style={{ fontWeight: 700 }}>No picks yet</div><p className="hint" style={{ margin: '6px 0 0' }}>Head to Home and back a side.</p></div></section>;
   return <section className="view"><h2 style={{ fontSize: 22 }}>Your picks</h2><p className="hint">Every stake is stock you own. Points land when the game goes final.</p>
     {list.map(p => { const g = gm[p.game_id]; const won = p.status === 'won', lost = p.status === 'lost'; const live = p.status === 'pending' && new Date(g.commence_time) <= new Date();
-      const label = p.market === 'prop' ? p.selection.split('|')[0] + ' ' + p.selection.split('|')[2] + ' ' + (p.point ?? '') : p.selection + (p.market === 'h2h' ? '' : ' ' + pt(p.point));
+      const label = legLabel(p);
       const val = p.shares && d.prices[p.ticker] ? Number(p.shares) * d.prices[p.ticker] : null;
       return <div key={p.id} className={'pick ' + (won ? 'won' : lost ? 'lost' : '')}>
         <div className="row"><div><div className="side">{label} {oddsTxt(p.odds)}</div><div className="meta">{g.away} at {g.home}{g.completed ? ` · ${g.away_score}-${g.home_score}` : ''}</div></div>
@@ -296,33 +430,81 @@ function Cup({ d, uid }: { d: ReturnType<typeof useData>; uid: string }) {
   const sorted = [...d.lb].sort((a, b) => Number(b.points ?? 0) - Number(a.points ?? 0)); const mine = split[uid] ?? 0;
   return <section className="view"><h2 style={{ fontSize: 22 }}>The Cup</h2>
     <div className="pot"><div className="row"><span className="small">Monthly pot</span><span className="small">{new Date(month() + '-02').toLocaleString(undefined, { month: 'long', year: 'numeric' })}</span></div>
-      <div className="big">{fmt0(d.pot)}</div>
+      <div className="big"><Roll value={d.pot} format={fmt0} /></div>
       {rows.some(r => r.id === uid) && <div className="hint" style={{ margin: '6px 0 0' }}>You hold <b className="mint">{(d.pot ? mine / d.pot * 100 : 0).toFixed(1)}%</b> of the pot right now: <b className="mint">{fmt(mine)}</b></div>}
       <div className="small" style={{ marginTop: 8 }}>60% split by points, 40% to the top 10. Points are the odds you hit, stake never matters. Best 15 picks a week count.</div></div>
     {sorted.length ? sorted.map((r, i) => <div key={r.user_id} className={'lrow ' + (r.user_id === uid ? 'me' : '')}><div className="rk">{i + 1}</div><div className="nm">{r.display_name} {r.streak >= 3 && <span className="flame"><Symbol name="flame" size={12} />{r.streak}</span>}</div><div className="pt">{Math.round(Number(r.points ?? 0))}</div><div className="sh">{fmt0(split[r.user_id] ?? 0)}</div></div>) : <p className="hint">Nobody has settled a pick this month yet.</p>}
   </section>;
 }
 
-/* ---------- home ---------- */
-function Home({ d, gm, say, onBroker }: { d: ReturnType<typeof useData>; gm: Record<string, Game>; say: (m: string) => void; onBroker: () => void }) {
+/* ---------- owned: the live portfolio ---------- */
+function Owned({ d, gm }: { d: ReturnType<typeof useData>; gm: Record<string, Game> }) {
   const mine = d.picks.filter(p => gm[p.game_id]);
-  const invested = mine.reduce((s, p) => s + Number(p.stake), 0);
-  const value = mine.reduce((s, p) => s + (p.shares && d.prices[p.ticker] ? Number(p.shares) * d.prices[p.ticker] : Number(p.stake)), 0);
-  const settled = mine.filter(p => p.status !== 'pending'); const book = settled.reduce((s, p) => s + counterfactualDelta(Number(p.stake), p.odds, p.status as any), 0);
-  const proj = (y: number) => mine.reduce((s, p) => s + project(Number(p.stake), d.stocks.find(x => x.ticker === p.ticker)?.avg_return_10y ?? 10, y), 0);
-  const wins = mine.filter(p => p.status === 'won').length, losses = mine.filter(p => p.status === 'lost').length;
-  const saveCap = async (v: string) => { await sb.from('profiles').update({ weekly_cap: v ? Number(v) : null }).eq('id', d.profile!.id); say(v ? 'Cap set' : 'Cap removed'); d.reload(); };
-  return <section className="view">
-    <div className="hero"><div className="small">Hey {d.profile?.display_name}</div><h1>{settled.length && book < value ? `You own ${fmt0(value)}. A sportsbook would have left you ${fmt0(book)}.` : 'Two timelines. Same picks.'}</h1></div>
-    <div className="tl"><div className="you"><div className="l">You own</div><div className="v">{fmt0(value)}</div><div className="s">{fmt0(invested)} staked across {mine.length} picks</div></div><div className="book"><div className="l">Sportsbook timeline</div><div className="v">{fmt0(book)}</div><div className="s">{settled.length ? `after ${settled.length} settled picks` : 'nothing settled yet'}</div></div></div>
-    <div className="card"><div className="small" style={{ marginBottom: 8 }}>If these holdings grew at their 10-year averages</div>
+  const filled = mine.filter(p => p.filled_at && p.shares);
+  const pending = mine.filter(p => !p.filled_at);
+  const value = ownedValue(mine, d.prices);
+  const staked = mine.reduce((s, p) => s + Number(p.stake), 0);
+  const holdings = Object.values(filled.reduce<Record<string, { ticker: string; shares: number; cost: number }>>((acc, p) => {
+    const h = acc[p.ticker] ?? (acc[p.ticker] = { ticker: p.ticker, shares: 0, cost: 0 });
+    h.shares += Number(p.shares); h.cost += Number(p.stake); return acc;
+  }, {})).map(h => ({ ...h, value: d.prices[h.ticker] ? h.shares * d.prices[h.ticker] : h.cost, stock: d.stocks.find(x => x.ticker === h.ticker) }))
+    .sort((a, b) => b.value - a.value);
+  const move = holdings.reduce((s, h) => s + (h.value - h.cost), 0);
+  const proj = (y: number) => holdings.reduce((s, h) => s + project(h.value, h.stock?.avg_return_10y ?? 10, y), 0) + pending.reduce((s, p) => s + project(Number(p.stake), d.stocks.find(x => x.ticker === p.ticker)?.avg_return_10y ?? 10, y), 0);
+
+  if (!mine.length) return <section className="view"><h2 style={{ fontSize: 22 }}>Owned</h2>
+    <div className="card calm"><div style={{ fontWeight: 700 }}>Nothing owned yet</div><p className="hint" style={{ margin: '6px 0 0' }}>Back a pick on Home. Win or miss, the stake buys stock that shows up here.</p></div>
+  </section>;
+
+  return <section className="view"><h2 style={{ fontSize: 22 }}>Owned</h2>
+    <div className="card">
+      <div className="small">Portfolio value</div>
+      <div className="big" style={{ margin: '4px 0' }}><Roll value={value} format={fmt0} /></div>
+      <div className="small">{fmt0(staked)} staked across {mine.length} picks{holdings.length ? <> · <b className={move >= 0 ? 'mint' : ''}>{move >= 0 ? '+' : ''}{fmt(move)}</b> since you bought</> : null}</div>
+    </div>
+    {holdings.map(h => <div key={h.ticker} className="card">
+      <div className="row"><div><div style={{ fontWeight: 700, fontSize: 17 }}>{h.ticker}</div><div className="small">{h.stock?.name ?? ''}</div></div>
+        <div style={{ textAlign: 'right' }}><div style={{ fontWeight: 700 }}>{fmt(h.value)}</div><div className="small">{h.shares.toFixed(4)} shares</div></div></div>
+      <div className="small" style={{ marginTop: 8 }}>Bought at avg {fmt(h.cost / h.shares)} per share · <b className={h.value - h.cost >= 0 ? 'mint' : ''}>{h.value - h.cost >= 0 ? '+' : ''}{fmt(h.value - h.cost)}</b></div>
+      <div className="ladder" style={{ marginTop: 10 }}>{[1, 5, 10].map(y => <div key={y}><div className="l">{y} yr</div><div className="v">{fmt0(project(h.value, h.stock?.avg_return_10y ?? 10, y))}</div></div>)}</div>
+    </div>)}
+    {pending.length > 0 && <div className="card">
+      <div style={{ fontWeight: 700 }}>Buying at next market open</div>
+      {pending.map(p => <div key={p.id} className="small" style={{ marginTop: 6 }}>{fmt0(Number(p.stake))} of {p.ticker}</div>)}
+    </div>}
+    <div className="card"><div className="small" style={{ marginBottom: 8 }}>If everything here grew at its 10-year average</div>
       <div className="ladder"><div><div className="l">1 yr</div><div className="v">{fmt0(proj(1))}</div></div><div><div className="l">5 yr</div><div className="v">{fmt0(proj(5))}</div></div><div><div className="l">10 yr</div><div className="v">{fmt0(proj(10))}</div></div></div>
       <div className="disc">Hypothetical. Uses each ticker's approximate 10-year average annual return. Past returns do not predict future results. Nothing here is investment advice.</div></div>
-    <div className="card"><div className="row"><div><div style={{ fontWeight: 700 }}>This month</div><div className="small">{wins}-{losses} · streak {d.profile?.streak ?? 0}</div></div><div style={{ fontWeight: 700, fontSize: 22 }}>{Math.round(mine.filter(p => p.counted).reduce((s, p) => s + Number(p.points), 0))} pts</div></div></div>
-    <div className="card"><div className="row"><div><div style={{ fontWeight: 700 }}>Brokerage</div><div className="small">{d.broker?.connected ? `${BROKERS.find(b => b[0] === d.broker!.provider)?.[1]} · simulated during beta` : 'Not connected'}</div></div><button className="btn ghost sm" onClick={onBroker}>{d.broker?.connected ? 'Change' : 'Connect'}</button></div></div>
-    <div className="card"><div className="row"><div><div style={{ fontWeight: 700 }}>Weekly stake cap</div><div className="small">Your own limit. The app enforces it.</div></div><input type="number" min={0} step={5} defaultValue={d.profile?.weekly_cap ?? ''} onBlur={e => saveCap(e.target.value)} style={{ width: 90, padding: 10, minHeight: 44, borderRadius: 10, background: 'var(--bg3)', border: '1px solid var(--line)', outline: 'none' }} aria-label="Weekly cap" /></div></div>
+    <div className="disc">Day-by-day movement arrives once the engine stores daily closes. Until then, movement is measured from your buy price.</div>
+  </section>;
+}
+
+/* ---------- profile ---------- */
+function ProfileTab({ d, gm, say, onBroker }: { d: ReturnType<typeof useData>; gm: Record<string, Game>; say: (m: string) => void; onBroker: () => void }) {
+  const [how, setHow] = useState(false);
+  const name = d.profile?.display_name ?? 'You';
+  const mine = d.picks.filter(p => gm[p.game_id]);
+  const value = ownedValue(mine, d.prices);
+  const wins = mine.filter(p => p.status === 'won').length, losses = mine.filter(p => p.status === 'lost').length;
+  const monthPts = Math.round(mine.filter(p => p.counted).reduce((s, p) => s + Number(p.points), 0));
+  const saveCap = async (v: string) => { await sb.from('profiles').update({ weekly_cap: v ? Number(v) : null }).eq('id', d.profile!.id); say(v ? 'Cap set' : 'Cap removed'); d.reload(); };
+  return <section className="view">
+    <div className="whoami"><span className="avatar big">{initialsOf(name)}</span><div><h2 style={{ fontSize: 22 }}>{name}</h2><div className="small">Private beta</div></div></div>
+    <div className="card">
+      <div className="small">Owned</div>
+      <div className="big" style={{ margin: '4px 0' }}><Roll value={value} format={fmt0} /></div>
+      <div className="row" style={{ marginTop: 10 }}>
+        <button className="btn ghost sm" onClick={onBroker}>{d.broker?.connected ? `${BROKERS.find(b => b[0] === d.broker!.provider)?.[1]} connected (simulated)` : 'Open brokerage (simulated)'}</button>
+        <button className="btn ghost sm" onClick={() => setHow(h => !h)}>How it works</button>
+      </div>
+      {how && <p className="hint" style={{ marginTop: 10 }}>Every stake buys real stock in your own brokerage account. Win and you earn points toward the pot. Miss and the streak resets, but the stock stays yours. Investibet never holds your money and never recommends a stock.</p>}
+    </div>
+    <div className="card"><div className="row"><div><div style={{ fontWeight: 700 }}>This month</div><div className="small">{wins} won · {losses} missed · streak {d.profile?.streak ?? 0}</div></div><div style={{ fontWeight: 700, fontSize: 22 }}>{monthPts} pts</div></div></div>
+    <div className="card"><div className="row"><div style={{ display: 'flex', gap: 10, alignItems: 'center' }}><Symbol name="shield" size={20} /><div><div style={{ fontWeight: 700 }}>Responsible play</div><div className="small">Your weekly stake cap. The app enforces it.</div></div></div>
+      <input type="number" min={0} step={5} defaultValue={d.profile?.weekly_cap ?? ''} onBlur={e => saveCap(e.target.value)} style={{ width: 90, padding: 10, minHeight: 44, borderRadius: 10, background: 'var(--bg3)', border: '1px solid var(--line)', outline: 'none' }} aria-label="Weekly cap" /></div></div>
     <button className="btn ghost" onClick={() => sb.auth.signOut()}>Sign out</button>
     <div className="disc">Investibet never holds your money, never places trades for you, and never recommends a stock. Lines shown are informational. Free, private, invite-only beta.</div>
+    <div className="small" style={{ textAlign: 'center', margin: '16px 0' }}>Beta 0.2</div>
   </section>;
 }
 

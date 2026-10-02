@@ -16,6 +16,19 @@ export const basePoints = (odds: number) =>
 export const streakMultiplier = (streak: number) =>
   streak >= 5 ? 2 : streak >= 3 ? 1.5 : 1;
 
+/** American to decimal odds. +150 -> 2.5, -200 -> 1.5. */
+export const decimalOdds = (odds: number) =>
+  odds > 0 ? 1 + odds / 100 : 1 + 100 / Math.abs(odds);
+
+/** Combined American odds for a Stack: product of decimal odds, converted back, rounded. */
+export function stackOdds(legs: number[]): number {
+  const d = legs.reduce((p, o) => p * decimalOdds(o), 1);
+  return d >= 2 ? Math.round((d - 1) * 100) : -Math.round(100 / (d - 1));
+}
+
+/** Points for a Stack = the combined odds on the flat $100 basis. A +600 stack earns 600. */
+export const stackPoints = (legs: number[]) => basePoints(stackOdds(legs));
+
 export interface GradeInput {
   market: Market;
   selection: string;     // team name | 'Over' | 'Under'
@@ -110,6 +123,13 @@ export function counterfactualDelta(stake: number, odds: number, status: Status)
   if (status === 'lost') return -stake;
   return 0;
 }
+
+/**
+ * Sportsbook-timeline value of a whole book of picks, apples-to-apples with owned value:
+ * pending stakes are still in play, settled picks resolve per counterfactualDelta.
+ */
+export const bookValue = (picks: { stake: number; odds: number; status: Status }[]) =>
+  picks.reduce((s, p) => s + p.stake + counterfactualDelta(p.stake, p.odds, p.status), 0);
 
 export const project = (invested: number, avgReturnPct: number, years: number) =>
   invested * Math.pow(1 + avgReturnPct / 100, years);
