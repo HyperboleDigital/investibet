@@ -298,13 +298,8 @@ const MKS: [string, string][] = [['spreads', 'Spread'], ['totals', 'Total'], ['h
 const LEAGUE_ICONS: Record<string, string> = { All: 'sportscourt', NFL: 'football', NCAAF: 'football', NBA: 'basketball', NCAAB: 'basketball', MLB: 'baseball', NHL: 'puck' };
 const shortName = (t: string) => t.split(' ').slice(-1)[0];
 const spoken = (n: number) => (n > 0 ? 'plus ' : 'minus ') + Math.abs(n);
-// Team color sits behind a 2 or 3 letter monogram: dark ink on light colors, white on dark
-const inkOn = (hex: string) => { const c = hex.replace('#', ''); const [r, g, b] = [0, 2, 4].map(i => parseInt(c.slice(i, i + 2), 16) / 255); return 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.45 ? '#08130E' : '#FFFFFF'; };
-// Unmapped team (alias missing): neutral disc, first three letters, mascot as short name. Never breaks a card.
+// Unmapped team (alias missing): first three letters as the abbreviation, mascot as short name. Never breaks a card.
 const fallbackTeam = (name: string): TeamInfo => ({ abbreviation: name.replace(/[^A-Za-z]/g, '').slice(0, 3).toUpperCase(), short_name: shortName(name), ui_color: null });
-function Mono({ t }: { t: TeamInfo }) {
-  return <span className="mono" style={t.ui_color ? { background: t.ui_color, color: inkOn(t.ui_color) } : undefined} aria-hidden="true">{t.abbreviation}</span>;
-}
 const kickoffLabel = (k: Date) => {
   const now = new Date(); const tomorrow = new Date(now); tomorrow.setDate(now.getDate() + 1);
   const day = k.toDateString() === now.toDateString() ? (k.getHours() >= 17 ? 'Tonight' : 'Today')
@@ -368,7 +363,7 @@ function Home({ d, uid, cart, onToggle, onCup, onStock, openId, setOpenId }: { d
     const started = Date.parse(g.commence_time) <= now;
     return <>
       {[g.away, g.home].map((name, i) => { const t = team(name); const sc = i === 0 ? g.away_score : g.home_score; return <div className="mrow" key={name}>
-        <div className="tname" title={name}><Mono t={t} /><span className="nm2">{t.short_name}</span>{started && sc != null && <span className="scorechip">{sc}</span>}</div>
+        <div className="tname" title={name}><span className="nm2">{t.short_name}</span>{started && sc != null && <span className="scorechip">{sc}</span>}</div>
         {MKS.map(([mk]) => {
           const sel = mk === 'totals' ? (i === 0 ? 'Over' : 'Under') : name;
           const l = lineFor(g, mk, sel);

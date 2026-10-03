@@ -168,11 +168,10 @@ header{display:flex;align-items:center;justify-content:space-between;padding:18p
 .mhead{display:grid;grid-template-columns:minmax(96px,1.1fr) repeat(3,1fr);gap:8px;font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--dim);text-align:center;margin:14px 0 2px}
 .mhead span:first-child{text-align:left}
 .mrow{display:grid;grid-template-columns:minmax(96px,1.1fr) repeat(3,1fr);gap:8px;align-items:stretch;margin:8px 0}
-.tname{display:flex;align-items:center;gap:8px;min-width:0;flex-wrap:wrap}
-.tname .nm2{font-size:16px;font-weight:600;letter-spacing:-.01em;line-height:1.2;min-width:0}
-.scorechip{background:var(--bg3);border-radius:8px;padding:3px 9px;font-weight:800;font-size:14px;flex:none}
-/* Monogram disc: team color as identity accent, never a fill behind copy. Neutral when no color cleared 3:1. */
-.mono{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:50%;background:var(--bg3);color:var(--muted);font-size:10.5px;font-weight:800;letter-spacing:.02em;flex:none}
+/* Team row, Hard Rock's: plain name, score chip in its own aligned slot, no logos or discs */
+.tname{display:flex;align-items:center;gap:8px;min-width:0;padding-right:2px}
+.tname .nm2{flex:1;min-width:0;font-size:17px;font-weight:600;letter-spacing:-.01em;line-height:1.25}
+.scorechip{background:var(--bg3);border-radius:8px;padding:4px 10px;font-weight:800;font-size:15px;flex:none}
 .divider{display:flex;align-items:center;gap:8px;margin:18px 0 2px;font-size:12px;font-weight:600;color:var(--dim)}
 .divider:after{content:"";flex:1;border-top:1px solid var(--line)}
 .divider .dot{width:8px;height:8px;border-radius:50%;background:var(--gold);animation:pulse 1.6s ease-out infinite}
