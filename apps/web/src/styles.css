@@ -41,6 +41,13 @@ header{display:flex;align-items:center;justify-content:space-between;padding:18p
 .chip.on{background:var(--mint2);border-color:var(--mint);color:var(--ink);animation:popsel .25s cubic-bezier(.2,.9,.3,1.3)}
 @keyframes popsel{0%{transform:scale(.92)}60%{transform:scale(1.05)}100%{transform:none}}
 .chip svg{flex:none}
+/* League tab strip, Hard Rock's pattern: underlined active tab, icons, live-game shortcuts */
+.ltabs{display:flex;gap:4px;align-items:stretch;overflow-x:auto;scrollbar-width:none;border-bottom:1px solid var(--line);margin:0 -16px 4px;padding:0 16px}
+.ltabs::-webkit-scrollbar{display:none}
+.ltabs button{display:inline-flex;align-items:center;gap:6px;padding:10px 10px;min-height:48px;font-size:15px;font-weight:600;color:var(--dim);border-bottom:2.5px solid transparent;border-radius:0;white-space:nowrap;flex:none}
+.ltabs button.on{color:var(--ink);font-weight:800;border-bottom-color:var(--ink)}
+.ltabs .lvtab{font-size:13px;font-weight:700;color:var(--muted);gap:5px}
+.ltabs .lvtab .ld{width:7px;height:7px;border-radius:50%;background:var(--gold);animation:pulse 1.6s ease-out infinite}
 /* Underlined content tabs (Picks), Hard Rock's My Bets pattern */
 .tabs{display:flex;gap:20px;margin:2px 0 6px;overflow:auto;scrollbar-width:none}.tabs::-webkit-scrollbar{display:none}
 .tabs button{padding:8px 2px;min-height:44px;font-size:15px;font-weight:600;color:var(--dim);border-bottom:2px solid transparent;border-radius:0;white-space:nowrap}

@@ -331,7 +331,6 @@ const lockableLine = (g: Game, l: Line, now: number) => {
 function Home({ d, uid, cart, onToggle, onCup, onStock, openId, setOpenId }: { d: ReturnType<typeof useData>; uid: string; cart: Leg[]; onToggle: (g: Game, l: Line) => void; onCup: () => void; onStock: (t: string) => void; openId: string | null; setOpenId: (id: string | null) => void }) {
   const [league, setLeague] = useState('All'); const [filter, setFilter] = useState<'trending' | 'live'>('trending'); const [q, setQ] = useState('');
   const [propsFor, setPropsFor] = useState<string | null>(null); const [propLines, setPropLines] = useState<Line[]>([]);
-  const [openLg, setOpenLg] = useState<string | null>(null);
   const [secOpen, setSecOpen] = useState<Record<string, boolean>>({});
   const gm = useMemo(() => Object.fromEntries(d.games.map(g => [g.id, g])), [d.games]);
   const now = Date.now();
@@ -450,16 +449,6 @@ function Home({ d, uid, cart, onToggle, onCup, onStock, openId, setOpenId }: { d
     </section>;
   }
 
-  // League page: drill into one league from "View more lines"
-  if (openLg) {
-    const lgGames = upcoming.filter(g => g.league === openLg);
-    return <section className="view">
-      <button className="back" aria-label="Back to the board" onClick={() => setOpenLg(null)}><Symbol name="arrowleft" size={20} /></button>
-      <div className="lg-head" style={{ marginTop: 2 }}><Symbol name={LEAGUE_ICONS[openLg]} size={20} /><h3 style={{ fontSize: 24 }}>{openLg}</h3><span className="small" style={{ marginLeft: 'auto' }}>{lgGames.length} games</span></div>
-      {lgGames.length ? <>{mhead}{lgGames.map(card)}</> : <div className="empty"><Symbol name={LEAGUE_ICONS[openLg]} size={48} /><p>No {openLg} games on the board right now.</p></div>}
-      <div className="disc">Lines refresh hourly before kickoff and hold for the first 15 minutes after. Tap a matchup for every market.</div>
-    </section>;
-  }
 
   // League sections, Hard Rock pattern: header with sport icon, capped list, View more lines
   const CAP = 4;
@@ -470,11 +459,13 @@ function Home({ d, uid, cart, onToggle, onCup, onStock, openId, setOpenId }: { d
   return <section className="view">
     <div className="searchbar"><Symbol name="magnifyingglass" size={16} /><input className="search" placeholder="Find a game or stock" aria-label="Find a game or stock" value={q} onChange={e => setQ(e.target.value)} /></div>
     <div className="chips">
-      <button className={'chip ' + (league === 'All' && filter === 'trending' && !query ? 'on' : '')} onClick={() => { setLeague('All'); setFilter('trending'); setQ(''); }}><Symbol name="sportscourt" size={15} />All</button>
-      <button className={'chip ' + (filter === 'trending' && !query ? 'on' : '')} aria-pressed={filter === 'trending'} onClick={() => { setFilter('trending'); setQ(''); }}><Symbol name="chart" size={15} />Trending</button>
-      <button className={'chip ' + (filter === 'live' && !query ? 'on' : '')} aria-pressed={filter === 'live'} onClick={() => { setFilter('live'); setQ(''); }}><Symbol name="live" size={15} />Live{live.length ? ` · ${live.length}` : ''}</button>
+      <button className={'chip slim ' + (filter === 'trending' && !query ? 'on' : '')} aria-pressed={filter === 'trending'} onClick={() => { setFilter('trending'); setQ(''); }}><Symbol name="chart" size={15} />Trending</button>
+      <button className={'chip slim ' + (filter === 'live' && !query ? 'on' : '')} aria-pressed={filter === 'live'} onClick={() => { setFilter('live'); setQ(''); }}><Symbol name="live" size={15} />Live{live.length ? ` · ${live.length}` : ''}</button>
     </div>
-    <div className="chips">{LEAGUES.slice(1).map(l => <button key={l} className={'chip ' + (league === l && !query ? 'on' : '')} aria-pressed={league === l && !query} onClick={() => { setLeague(league === l ? 'All' : l); setQ(''); }}><Symbol name={LEAGUE_ICONS[l]} size={15} />{l}</button>)}</div>
+    <div className="ltabs" role="tablist" aria-label="Leagues">
+      {LEAGUES.map(l => <button key={l} role="tab" aria-selected={league === l && !query} className={league === l && !query ? 'on' : ''} onClick={() => { setLeague(l); setQ(''); }}>{l !== 'All' && <Symbol name={LEAGUE_ICONS[l]} size={16} />}{l}</button>)}
+      {live.slice(0, 4).map(g => <button key={g.id} className="lvtab" onClick={() => { setOpenId(g.id); scrollTo(0, 0); }}><i className="ld" />{team(g.away).abbreviation} @ {team(g.home).abbreviation}</button>)}
+    </div>
 
     <div className="tl2">
       <div className="tlc you">
@@ -505,7 +496,7 @@ function Home({ d, uid, cart, onToggle, onCup, onStock, openId, setOpenId }: { d
 
     {sections.map(([lg, gs]) => <div key={lg}>
       <div className="lg-head"><Symbol name={LEAGUE_ICONS[lg]} size={16} /><h3>{lg}</h3>
-        {league === 'All' && <button className="more" onClick={() => { setOpenLg(lg); scrollTo(0, 0); }}>View more lines<Symbol name="chevron" size={12} /></button>}
+        {league === 'All' && gs.length > CAP && <button className="more" onClick={() => { setLeague(lg); scrollTo(0, 0); }}>View more lines<Symbol name="chevron" size={12} /></button>}
       </div>
       {mhead}
       {(league === 'All' ? gs.slice(0, CAP) : gs).map(card)}
