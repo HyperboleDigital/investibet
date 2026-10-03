@@ -529,54 +529,88 @@ function Promo({ d, uid, invested, onCup }: { d: ReturnType<typeof useData>; uid
   </button>;
 }
 
-/* ---------- slip: single leg locks today, multi-leg previews the Stack ---------- */
+/* ---------- slip: two steps, Hard Rock's way. Stake on the numpad, then the stock. ---------- */
 function Slip({ d, legs, stake, setStake, onRemove, onClose, onLocked, say, brokerConnected, onNeedBroker }: {
   d: ReturnType<typeof useData>; legs: Leg[]; stake: number; setStake: (n: number) => void; onRemove: (i: number) => void;
   onClose: () => void; onLocked: () => void; say: (m: string) => void; brokerConnected: boolean; onNeedBroker: () => void;
 }) {
+  const [step, setStep] = useState<1 | 2>(1);
+  const [raw, setRaw] = useState('20');
   const [ticker, setTicker] = useState<string | null>(null);
   const [tier, setTier] = useState(0); const [q, setQ] = useState(''); const [busy, setBusy] = useState(false);
   const open = legs.length > 0;
-  useEffect(() => { if (open) { setTicker(null); setQ(''); setTier(0); } }, [open]);
+  useEffect(() => { if (open) { setStep(1); setTicker(null); setQ(''); setTier(0); setRaw(stake > 0 ? String(stake) : '20'); } }, [open]); // eslint-disable-line
   if (!open) return <><div className="scrim" /><div className="sheet" /></>;
   const single = legs.length === 1 ? legs[0] : null;
   const combined = stackOdds(legs.map(x => x.line.price));
   const points = stackPoints(legs.map(x => x.line.price));
+  const stakeN = Math.min(9999, parseFloat(raw) || 0);
+  const push = (c: string) => setRaw(r => {
+    let n = r;
+    if (c === '<') n = r.slice(0, -1);
+    else if (c === '.') { if (r.includes('.')) return r; n = r === '' ? '0.' : r + '.'; }
+    else { if (/\.\d{2}$/.test(r)) return r; n = r === '0' ? c : r + c; if (n.replace(/\D/g, '').length > 4) return r; }
+    setStake(Math.min(9999, parseFloat(n) || 0));
+    return n;
+  });
+  const add = (v: number) => setRaw(r => { const n = Math.min(9999, Math.round(((parseFloat(r) || 0) + v) * 100) / 100); setStake(n); return String(n); });
   const s = d.stocks.find(x => x.ticker === ticker);
   const list = d.stocks.filter(x => q ? x.ticker.toLowerCase().includes(q.toLowerCase()) || x.name.toLowerCase().includes(q.toLowerCase()) : x.tier === tier).sort((a, b) => a.ticker.localeCompare(b.ticker));
   const lock = async () => {
-    if (!single || !ticker) return;
+    if (!single || !ticker || stakeN < 1) return;
     if (!brokerConnected) return onNeedBroker();
-    setBusy(true); localStorage.setItem('ib_stake', String(stake));
-    const { error } = await sb.rpc('lock_pick', { p_game_id: single.game.id, p_market: single.line.market, p_selection: single.line.selection, p_stake: stake, p_ticker: ticker });
+    setBusy(true); localStorage.setItem('ib_stake', String(stakeN));
+    const { error } = await sb.rpc('lock_pick', { p_game_id: single.game.id, p_market: single.line.market, p_selection: single.line.selection, p_stake: stakeN, p_ticker: ticker });
     setBusy(false); if (error) return say(error.message.replace(/^.*?: /, ''));
     navigator.vibrate?.(30); say(marketOpen(new Date()) ? `Locked. Buying ${ticker} now` : `Locked. ${ticker} buys at next market open`); onLocked();
   };
+  const liveTag = (g: Game) => Date.parse(g.commence_time) <= Date.now() && <b className="gold" style={{ fontSize: 11, marginLeft: 6 }}>LIVE</b>;
   return <><div className="scrim open" onClick={onClose} /><div className="sheet open">
     <div className="grab" />
-    <div className="slip-head"><div className="t">{single ? legLabel(single.line) : `${legs.length}-leg Stack`}</div><div className="o">{oddsTxt(combined)}</div></div>
-    {single ? <div className="small">{single.game.away} at {single.game.home} · {Math.round(implied(single.line.price) * 100)}% implied · {points} pts if it hits{Date.parse(single.game.commence_time) <= Date.now() && <b className="gold"> · LIVE</b>}</div>
-      : <div className="legs">{legs.map((x, i) => <div className="legrow" key={legKey(x.line)}>
-          <div className="lx"><div className="n">{legLabel(x.line)}{Date.parse(x.game.commence_time) <= Date.now() && <b className="gold" style={{ fontSize: 11, marginLeft: 6 }}>LIVE</b>}</div><div className="s">{MARKET_LABEL[x.line.market] ?? x.line.market} · {x.game.away} at {x.game.home}</div></div>
+    <button className="sheet-x" aria-label="Close and keep browsing" onClick={onClose}><Symbol name="xmark" size={15} /></button>
+    {step === 1 ? <>
+      {single ? <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginTop: 2, paddingRight: 40 }}>
+        <button className="rm" aria-label="Remove pick" onClick={() => onRemove(0)}><Symbol name="xmark" size={13} /></button>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div className="side">{legLabel(single.line)} <span className="odds-acc">{oddsTxt(single.line.price)}</span>{liveTag(single.game)}</div>
+          <div className="eyebrow">{MARKET_LABEL[single.line.market] ?? single.line.market} · to hit</div>
+          <div className="meta">{single.game.away} @ {single.game.home} · {Math.round(implied(single.line.price) * 100)}% implied</div>
+        </div>
+      </div> : <>
+        <div className="slip-head" style={{ paddingRight: 40 }}><div className="t">{legs.length}-leg Stack</div><div className="o">{oddsTxt(combined)}</div></div>
+        <div className="legs">{legs.map((x, i) => <div className="legrow" key={legKey(x.line)}>
+          <div className="lx"><div className="n">{legLabel(x.line)}{liveTag(x.game)}</div><div className="s">{MARKET_LABEL[x.line.market] ?? x.line.market} · {x.game.away} at {x.game.home}</div></div>
           <div className="o">{oddsTxt(x.line.price)}</div>
           <button className="rm" aria-label="Remove leg" onClick={() => onRemove(i)}><Symbol name="xmark" size={14} /></button>
-        </div>)}
-        <div className="small" style={{ marginTop: 8 }}>Combined {oddsTxt(combined)} · <b className="mint">{points} pts</b> if every leg hits</div>
-      </div>}
-    {single ? <>
-      <div className="stake">{fmt0(stake)}</div>
-      <input type="range" min={5} max={100} step={5} value={stake} onChange={e => setStake(+e.target.value)} aria-label="Stake" />
-      <div className="trio"><div><div className="l">Win</div><div className="v mint">{points} pts</div></div><div><div className="l">Miss</div><div className="v">keep {fmt0(stake)}</div></div><div><div className="l">In 5 years</div><div className="v gold">{s ? '~' + fmt0(projectSmart(stake, s.avg_return_10y, 5)) : 'pick a stock'}</div></div></div>
-      <div style={{ fontWeight: 700, marginBottom: 6 }}>What does it buy?</div>
-      <div className="chips">{TIERS.map((t, i) => <button key={t} className={'chip ' + (tier === i && !q ? 'on' : '')} onClick={() => { setTier(i); setQ(''); }}>{t}</button>)}</div>
+        </div>)}</div>
+      </>}
+      <div className="se" style={{ marginTop: 16 }}>
+        <div><div className="l">Stake</div><div className="sx">{'$' + (raw === '' ? '0' : raw)}</div></div>
+        <div><div className="l">Earns</div><div className="v mint">{points} pts</div><div className="small" style={{ marginTop: 2 }}>plus the stock, win or miss</div></div>
+      </div>
+      <div className="quickadd">{[5, 10, 25].map(v => <button key={v} onClick={() => add(v)}>+${v}</button>)}</div>
+      <div className="numpad">{['1', '2', '3', '4', '5', '6', '7', '8', '9', '.', '0', '<'].map(k =>
+        <button key={k} aria-label={k === '<' ? 'Delete' : k} onClick={() => push(k)}>{k === '<' ? <Symbol name="backspace" size={22} /> : k}</button>)}</div>
+      {single ? <button className="btn" disabled={stakeN < 1} onClick={() => setStep(2)}>{stakeN >= 1 ? `Continue · ${fmt0(stakeN)} picks the stock` : 'Enter a stake, $1 or more'}</button>
+        : <>
+          <button className="btn" disabled>Stacks lock in the next build</button>
+          <div className="disc">One stake, one stock, every leg must hit. For now, trim to one leg to lock a single pick.</div>
+        </>}
+    </> : single && <>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, paddingRight: 40 }}>
+        <button className="back" aria-label="Back to the stake" onClick={() => setStep(1)}><Symbol name="arrowleft" size={18} /></button>
+        <div style={{ minWidth: 0 }}>
+          <div className="side" style={{ fontSize: 16 }}>{legLabel(single.line)} <span className="odds-acc">{oddsTxt(single.line.price)}</span></div>
+          <div className="meta" style={{ marginTop: 2 }}>{fmt0(stakeN)} stake · earns {points} pts if it hits</div>
+        </div>
+      </div>
+      <div style={{ fontWeight: 700, margin: '12px 0 6px' }}>What does your {fmt0(stakeN)} buy?</div>
+      <div className="chips">{TIERS.map((t, i) => <button key={t} className={'chip slim ' + (tier === i && !q ? 'on' : '')} onClick={() => { setTier(i); setQ(''); }}>{t}</button>)}</div>
       <input className="search" placeholder="Search tickers" value={q} onChange={e => setQ(e.target.value)} />
       {list.map(x => <button key={x.ticker} className={'srow ' + (ticker === x.ticker ? 'sel' : '')} onClick={() => setTicker(x.ticker)}><div className="tk">{x.ticker}</div><div className="nm">{x.name}</div><div><div className="ln">+{x.avg_return_10y}%/yr</div><div className="dd">worst drop {x.max_drawdown}%</div></div></button>)}
-      <div style={{ height: 12 }} />
-      <button className="btn" disabled={!ticker || busy} onClick={lock}>{busy ? 'Locking…' : !brokerConnected && ticker ? 'Connect brokerage to lock' : ticker ? `Lock ${fmt0(stake)} on ${single.line.selection.split('|')[0]} → ${ticker}` : 'Pick a stock to lock'}</button>
+      <div className="trio"><div><div className="l">Win</div><div className="v mint">{points} pts</div></div><div><div className="l">Miss</div><div className="v">keep {fmt0(stakeN)}</div></div><div><div className="l">In 5 years</div><div className="v gold">{s ? '~' + fmt0(projectSmart(stakeN, s.avg_return_10y, 5)) : 'pick a stock'}</div></div></div>
+      <button className="btn" disabled={!ticker || busy} onClick={lock}>{busy ? 'Locking…' : !brokerConnected && ticker ? 'Connect brokerage to lock' : ticker ? `Lock ${fmt0(stakeN)} on ${single.line.selection.split('|')[0]} → ${ticker}` : 'Pick a stock to lock'}</button>
       <div className="disc">Odds lock now. During beta the buy is simulated at the next market price. Lines are approximate 10-year averages and worst peak-to-trough drops. Not advice.</div>
-    </> : <>
-      <div className="card" style={{ marginTop: 14 }}><div style={{ fontWeight: 700 }}>Stacks lock in the next build</div><p className="hint" style={{ margin: '6px 0 0' }}>One stake, one stock, every leg must hit. For now, trim to one leg to lock a single pick.</p></div>
-      <button className="btn" disabled>Stack locking coming next</button>
     </>}
   </div></>;
 }

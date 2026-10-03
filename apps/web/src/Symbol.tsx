@@ -25,6 +25,7 @@ const GLYPHS: Record<string, ReactElement> = {
   uptri: <path d="M12 7l6 8H6z" fill="currentColor" stroke="none" />,
   eye: <><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z" /><circle cx="12" cy="12" r="3" /></>,
   lock: <><rect x="5" y="10.5" width="14" height="10" rx="2.5" /><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3" /></>,
+  backspace: <><path d="M9 5h10a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H9l-6.5-7z" /><path d="M12 9.5l5 5M17 9.5l-5 5" /></>,
   eyeslash: <><path d="M2.5 12S6 5.5 12 5.5a9.7 9.7 0 0 1 4.5 1.2M21.5 12S18 18.5 12 18.5a9.7 9.7 0 0 1-4.5-1.2M4 20L20 4" /></>,
   downtri: <path d="M12 17l-6-8h12z" fill="currentColor" stroke="none" />,
   chevron: P('M9 5l7 7-7 7'),
