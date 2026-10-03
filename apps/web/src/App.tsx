@@ -142,6 +142,17 @@ function WorthChart({ past, future, active, onActive, endLabel }: {
   </svg>;
 }
 
+/* Freeze the page behind an open sheet: iOS keeps scrolling the body otherwise */
+function useLockBody(locked: boolean) {
+  useEffect(() => {
+    if (!locked) return;
+    const y = window.scrollY; const b = document.body.style;
+    const prev = { position: b.position, top: b.top, left: b.left, right: b.right, width: b.width, overflow: b.overflow };
+    b.position = 'fixed'; b.top = `-${y}px`; b.left = '0'; b.right = '0'; b.width = '100%'; b.overflow = 'hidden';
+    return () => { b.position = prev.position; b.top = prev.top; b.left = prev.left; b.right = prev.right; b.width = prev.width; b.overflow = prev.overflow; window.scrollTo(0, y); };
+  }, [locked]);
+}
+
 /* ---------- data hook ---------- */
 function useData(session: Session | null) {
   const [games, setGames] = useState<Game[]>([]); const [lines, setLines] = useState<Line[]>([]); const [picks, setPicks] = useState<Pick[]>([]);
@@ -539,6 +550,7 @@ function Slip({ d, legs, stake, setStake, onRemove, onClose, onLocked, say, brok
   const [ticker, setTicker] = useState<string | null>(null);
   const [tier, setTier] = useState(0); const [q, setQ] = useState(''); const [busy, setBusy] = useState(false);
   const open = legs.length > 0;
+  useLockBody(open);
   useEffect(() => { if (open) { setStep(1); setTicker(null); setQ(''); setTier(0); setRaw(stake > 0 ? String(stake) : '20'); } }, [open]); // eslint-disable-line
   if (!open) return <><div className="scrim" /><div className="sheet" /></>;
   const single = legs.length === 1 ? legs[0] : null;
@@ -574,7 +586,7 @@ function Slip({ d, legs, stake, setStake, onRemove, onClose, onLocked, say, brok
         <div style={{ flex: 1, minWidth: 0 }}>
           <div className="side">{legLabel(single.line)} <span className="odds-acc">{oddsTxt(single.line.price)}</span>{liveTag(single.game)}</div>
           <div className="eyebrow">{MARKET_LABEL[single.line.market] ?? single.line.market} · to hit</div>
-          <div className="meta">{single.game.away} @ {single.game.home} · {Math.round(implied(single.line.price) * 100)}% implied</div>
+          <div className="meta">{single.game.away} @ {single.game.home} · the odds say a {Math.round(implied(single.line.price) * 100)}% chance</div>
         </div>
       </div> : <>
         <div className="slip-head" style={{ paddingRight: 40 }}><div className="t">{legs.length}-leg Stack</div><div className="o">{oddsTxt(combined)}</div></div>
@@ -588,6 +600,7 @@ function Slip({ d, legs, stake, setStake, onRemove, onClose, onLocked, say, brok
         <div><div className="l">Stake</div><div className="sx">{'$' + (raw === '' ? '0' : raw)}</div></div>
         <div><div className="l">Earns</div><div className="v mint">{points} pts</div><div className="small" style={{ marginTop: 2 }}>plus the stock, win or miss</div></div>
       </div>
+      <div className="disc" style={{ marginTop: 6 }}>Points are the odds on a flat $100 basis: −105 earns 95 pts, +170 earns 170. Stake size never changes points. Streaks of 3 and 5 multiply them.</div>
       <div className="quickadd">{[5, 10, 25].map(v => <button key={v} onClick={() => add(v)}>+${v}</button>)}</div>
       <div className="numpad">{['1', '2', '3', '4', '5', '6', '7', '8', '9', '.', '0', '<'].map(k =>
         <button key={k} aria-label={k === '<' ? 'Delete' : k} onClick={() => push(k)}>{k === '<' ? <Symbol name="backspace" size={22} /> : k}</button>)}</div>
@@ -618,6 +631,7 @@ function Slip({ d, legs, stake, setStake, onRemove, onClose, onLocked, say, brok
 /* ---------- brokerage (simulated) ---------- */
 function BrokerSheet({ open, current, uid, onClose, onDone }: { open: boolean; current: Broker; uid: string; onClose: () => void; onDone: () => void }) {
   const [step, setStep] = useState<'pick' | 'auth'>('pick'); const [prov, setProv] = useState(current?.provider ?? 'webull');
+  useLockBody(open);
   const connect = async () => { await sb.from('brokerage_connections').upsert({ user_id: uid, provider: prov, connected: true, simulated: true }); setStep('pick'); onDone(); onClose(); };
   return <><div className={'scrim ' + (open ? 'open' : '')} onClick={onClose} /><div className={'sheet ' + (open ? 'open' : '')}>
     <div className="grab" />
@@ -725,6 +739,7 @@ function Picks({ d, gm, say, onEvent }: { d: ReturnType<typeof useData>; gm: Rec
 /* ---------- pick detail sheet ---------- */
 function PickSheet({ p, g, d, say, onClose, onEvent }: { p: Pick | null; g: Game | null; d: ReturnType<typeof useData>; say: (m: string) => void; onClose: () => void; onEvent: (gid: string) => void }) {
   const [arm, setArm] = useState(false);
+  useLockBody(!!p);
   useEffect(() => { setArm(false); }, [p?.id]);
   if (!p || !g) return <><div className="scrim" /><div className="sheet" /></>;
   const live = isLive(p, g);
@@ -1030,6 +1045,7 @@ function Confetti() {
 function Reveals({ d, gm }: { d: ReturnType<typeof useData>; gm: Record<string, Game> }) {
   const [seen, setSeen] = useState<Set<string>>(() => new Set(JSON.parse(localStorage.getItem('ib_seen') || '[]'))); const [cur, setCur] = useState<Pick | null>(null); const [phase, setPhase] = useState<'wait' | 'show'>('wait');
   const queue = d.picks.filter(p => p.status !== 'pending' && !seen.has(p.id) && gm[p.game_id]);
+  useLockBody(!!cur);
   useEffect(() => { if (!cur && queue.length) { setCur(queue[0]); setPhase('wait'); } }, [queue.length, cur]);
   // The timer gets its own effect: keyed on the queue it was cancelled by its own state update, leaving the reveal stuck on "Final…"
   useEffect(() => { if (!cur || phase !== 'wait') return; const t = setTimeout(() => { setPhase('show'); navigator.vibrate?.([30, 40, 60]); }, 1300); return () => clearTimeout(t); }, [cur, phase]);
