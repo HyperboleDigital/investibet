@@ -122,14 +122,43 @@ export default function App() {
 }
 
 function Gate() {
-  const [email, setEmail] = useState(''); const [sent, setSent] = useState(false);
-  const go = async () => { if (!email) return; const { error } = await sb.auth.signInWithOtp({ email, options: { emailRedirectTo: location.origin } }); if (!error) setSent(true); };
+  const [email, setEmail] = useState(() => localStorage.getItem('ib_email') ?? '');
+  const [mode, setMode] = useState<'email' | 'code' | 'password'>('email');
+  const [code, setCode] = useState(''); const [pw, setPw] = useState('');
+  const [err, setErr] = useState(''); const [busy, setBusy] = useState(false);
+  const run = async (fn: () => Promise<{ error: { message: string } | null }>, then?: () => void) => {
+    setErr(''); setBusy(true);
+    const { error } = await fn(); setBusy(false);
+    if (error) return setErr(error.message);
+    localStorage.setItem('ib_email', email); then?.();
+  };
+  const sendCode = () => email && run(() => sb.auth.signInWithOtp({ email, options: { emailRedirectTo: location.origin } }), () => { setCode(''); setMode('code'); });
+  const verify = () => code.trim() && run(() => sb.auth.verifyOtp({ email, token: code.trim(), type: 'email' }));
+  const pwLogin = () => pw && run(() => sb.auth.signInWithPassword({ email, password: pw }));
   return <div className="gate"><div className="box">
     <div className="brand" style={{ fontSize: 28 }}>Investi<span>bet</span></div>
     <p className="hint">Sports picks where the stake buys stock you keep. Losing loses nothing.</p>
-    {sent ? <p className="hint">Check your email for the sign-in link.</p> : <>
-      <input placeholder="Email" type="email" inputMode="email" autoCapitalize="none" value={email} onChange={e => setEmail(e.target.value)} />
-      <button className="btn" onClick={go}>Send me a sign-in link</button></>}
+    <input placeholder="Email" type="email" inputMode="email" autoCapitalize="none" autoComplete="email" value={email} onChange={e => setEmail(e.target.value)} />
+    {mode === 'email' && <>
+      <button className="btn" disabled={busy || !email} onClick={sendCode}>{busy ? 'Sending…' : 'Email me a code'}</button>
+      <div style={{ height: 8 }} />
+      <button className="btn ghost" onClick={() => { setErr(''); setMode('password'); }}>I have a password</button>
+    </>}
+    {mode === 'code' && <>
+      <p className="hint">Check your email for a 6-digit code. Entering it here keeps you inside the app; the link works too.</p>
+      <input placeholder="6-digit code" inputMode="numeric" autoComplete="one-time-code" maxLength={6} value={code} onChange={e => setCode(e.target.value.replace(/\D/g, ''))} />
+      <button className="btn" disabled={busy || code.trim().length < 6} onClick={verify}>{busy ? 'Checking…' : 'Sign in'}</button>
+      <div style={{ height: 8 }} />
+      <button className="btn ghost" disabled={busy} onClick={sendCode}>Resend the code</button>
+    </>}
+    {mode === 'password' && <>
+      <input placeholder="Password" type="password" autoComplete="current-password" value={pw} onChange={e => setPw(e.target.value)} />
+      <button className="btn" disabled={busy || !email || !pw} onClick={pwLogin}>{busy ? 'Signing in…' : 'Sign in'}</button>
+      <div style={{ height: 8 }} />
+      <button className="btn ghost" onClick={() => { setErr(''); setMode('email'); }}>Email me a code instead</button>
+      <p className="hint" style={{ marginTop: 10 }}>No password yet? Sign in with a code once, then set one in Profile.</p>
+    </>}
+    {err && <p className="hint" style={{ color: 'var(--coral)', marginTop: 10 }}>{err}. Try again, or use a code instead.</p>}
     <div className="disc">Free, private beta. No money moves through this app. Brokerage connection is simulated during beta.</div>
   </div></div>;
 }
@@ -675,6 +704,15 @@ function Owned({ d, gm, onStock }: { d: ReturnType<typeof useData>; gm: Record<s
 /* ---------- profile ---------- */
 function ProfileTab({ d, gm, say, onBroker }: { d: ReturnType<typeof useData>; gm: Record<string, Game>; say: (m: string) => void; onBroker: () => void }) {
   const [how, setHow] = useState(false);
+  const [pw, setPw] = useState(''); const [pwBusy, setPwBusy] = useState(false);
+  const savePw = async () => {
+    if (pw.length < 8) return say('8 characters minimum');
+    setPwBusy(true);
+    const { error } = await sb.auth.updateUser({ password: pw });
+    setPwBusy(false);
+    say(error ? error.message : 'Password set. Next sign-in can skip the email.');
+    if (!error) setPw('');
+  };
   const name = d.profile?.display_name ?? 'You';
   const mine = d.picks.filter(p => gm[p.game_id]);
   const value = ownedValue(mine, d.prices);
@@ -693,6 +731,14 @@ function ProfileTab({ d, gm, say, onBroker }: { d: ReturnType<typeof useData>; g
       {how && <p className="hint" style={{ marginTop: 10 }}>Every stake buys real stock in your own brokerage account. Win and you earn points toward the pot. Miss and the streak resets, but the stock stays yours. Investibet never holds your money and never recommends a stock.</p>}
     </div>
     <div className="card"><div className="row"><div><div style={{ fontWeight: 700 }}>This month</div><div className="small">{wins} won · {losses} missed · streak {d.profile?.streak ?? 0}</div></div><div style={{ fontWeight: 700, fontSize: 22 }}>{monthPts} pts</div></div></div>
+    <div className="card">
+      <div style={{ fontWeight: 700 }}>Sign-in password</div>
+      <div className="small" style={{ marginTop: 4 }}>Set one once and skip the email code next time. 8 characters or more.</div>
+      <div className="row" style={{ marginTop: 10 }}>
+        <input type="password" autoComplete="new-password" placeholder="New password" value={pw} onChange={e => setPw(e.target.value)} style={{ flex: 1, padding: 12, minHeight: 44, borderRadius: 10, background: 'var(--bg3)', border: '1px solid var(--line)', outline: 'none' }} aria-label="New password" />
+        <button className="btn sm" disabled={pwBusy || pw.length < 8} onClick={savePw}>{pwBusy ? 'Saving…' : 'Save'}</button>
+      </div>
+    </div>
     <div className="card"><div className="row"><div style={{ display: 'flex', gap: 10, alignItems: 'center' }}><Symbol name="shield" size={20} /><div><div style={{ fontWeight: 700 }}>Responsible play</div><div className="small">Your weekly stake cap. The app enforces it.</div></div></div>
       <input type="number" min={0} step={5} defaultValue={d.profile?.weekly_cap ?? ''} onBlur={e => saveCap(e.target.value)} style={{ width: 90, padding: 10, minHeight: 44, borderRadius: 10, background: 'var(--bg3)', border: '1px solid var(--line)', outline: 'none' }} aria-label="Weekly cap" /></div></div>
     <button className="btn ghost" onClick={() => sb.auth.signOut()}>Sign out</button>
