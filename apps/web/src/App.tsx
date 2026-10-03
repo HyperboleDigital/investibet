@@ -113,12 +113,17 @@ function WorthChart({ past, future, active, onActive, endLabel }: {
   past: number[]; future: number[]; active: number; onActive: (i: number) => void; endLabel: string;
 }) {
   const uid = useId().replace(/[^a-zA-Z0-9]/g, '');
-  const W = 360, H = 170, T = 18, B = 12, R = 58;
+  const W = 360, H = 170, T = 18, B = 12, R = 12;
   const comb = [...past, ...future.slice(1)];
   const N = comb.length;
-  const max = Math.max(1, ...comb) * 1.1;
+  // Compressed (log) scale: at +25 years the future is ~200x today, and a linear scale
+  // would squash the whole past into an invisible sliver. Log keeps both legible.
+  const hi = Math.max(10, ...comb) * 1.06;
+  const pos = comb.filter(v => v > 0);
+  const lo = Math.max(1, (pos.length ? Math.min(...pos) : 1) * 0.5);
+  const ly = (v: number) => Math.log(Math.max(v, lo));
+  const y = (v: number) => T + (1 - (ly(v) - ly(lo)) / (ly(hi) - ly(lo))) * (H - T - B);
   const x = (i: number) => (N > 1 ? (i * (W - R)) / (N - 1) : 0);
-  const y = (v: number) => T + (1 - v / max) * (H - T - B);
   const pts = (vals: number[], from = 0) => vals.map((v, i) => `${x(i + from).toFixed(1)},${y(v).toFixed(1)}`).join(' ');
   const ti = past.length - 1; // today
   const colW = (W - R) / Math.max(1, N - 1);
@@ -131,7 +136,8 @@ function WorthChart({ past, future, active, onActive, endLabel }: {
     <polyline points={pts(past)} fill="none" stroke={`url(#wg${uid})`} strokeWidth="3" strokeLinejoin="round" strokeLinecap="round" />
     <circle cx={x(ti)} cy={y(past[ti])} r="5.5" fill="var(--mint)" stroke="#fff" strokeWidth="2.5" />
     <circle cx={x(active)} cy={y(comb[Math.min(active, N - 1)])} r="4.5" fill={active > ti ? 'var(--mint)' : 'var(--peri)'} stroke="#fff" strokeWidth="2" opacity={active === ti ? 0 : 1} />
-    <text x={x(N - 1) + 7} y={y(comb[N - 1]) + 4} fontSize="12.5" fontWeight="800" fill="var(--mint)">{endLabel}</text>
+    {future.length > 1 && <circle cx={x(N - 1)} cy={y(comb[N - 1])} r="3.5" fill="#fff" stroke="var(--mint)" strokeWidth="2" />}
+    <text x={W - 4} y={Math.min(y(comb[N - 1]) + 22, H - 16)} textAnchor="end" fontSize="12.5" fontWeight="800" fill="var(--mint)">{endLabel}</text>
     {Array.from({ length: N }, (_, i) => <rect key={i} x={x(i) - colW / 2} y={0} width={colW} height={H} fill="transparent" onPointerDown={() => onActive(i)} onPointerEnter={() => onActive(i)} />)}
   </svg>;
 }
@@ -888,11 +894,11 @@ function Owned({ d, gm, onStock }: { d: ReturnType<typeof useData>; gm: Record<s
     </> : <>
       {mine.length > 0 ? <>
         <div className="bleed">
-          <WorthChart past={ownedPts} future={future} active={ai} onActive={setAt} endLabel={`≈${fmt0(future[FUT])}`} />
+          <WorthChart past={ownedPts} future={future} active={ai} onActive={setAt} endLabel={`≈${mask(fmt0(future[FUT]))}`} />
         </div>
         <div className="chips">{HORIZONS.map(h => <button key={h} className={'chip slim ' + (horizon === h ? 'on' : '')} onClick={() => { setHorizon(h); setAt(null); }}>+{h} {h === 1 ? 'year' : 'years'}</button>)}</div>
         <div className="readout">{ptLabel}: {ai > ti && '~'}{mask(fmt0(aOwn))} {ai > ti && <span className="sub" style={{ display: 'inline' }}>at 10-yr averages</span>}</div>
-        <div className="disc" style={{ marginTop: 6 }}>Solid: every locked pick, ending at today's value. Dashed: hypothetical growth at each holding's approximate 10-year average. Tap to walk the line. Past returns do not predict future results. Not advice.</div>
+        <div className="disc" style={{ marginTop: 6 }}>Solid: every locked pick, ending at today's value. Dashed: hypothetical growth at each holding's approximate 10-year average, drawn on a compressed (logarithmic) scale so today and the far future both stay visible. Tap to walk the line. Past returns do not predict future results. Not advice.</div>
         <div className="vsbook">
           <div className="vb-t">Same stakes, two endings</div>
           <div className="vb-row"><span className="vb-l">You own</span><div className="vb-track"><i className="vb-bar you" style={{ width: `${Math.max(4, (value / Math.max(value, bc, 1)) * 100)}%` }} /></div><span className="vb-v mint">{mask(fmt0(value))}</span></div>
