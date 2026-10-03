@@ -68,6 +68,32 @@ Reject from Hard Rock:
     Stacks are generated from most-picked legs, never editorialized.
 ```
 
+## 1c. Reference lock: Roi, the stocks side
+
+```
+Structural reference: Roi iOS app (Refero app 13, "Build & track your portfolio"),
+pulled Oct 3, 2026. Owns the stocks and portfolio layer only.
+Preserve from Roi:
+  - Portfolio header: eyebrow label over one big rolling value (their Net worth).
+  - Asset rows: monogram disc, TICKER bold over name in secondary, value right
+    with a color-coded change line. Tap opens the detail.
+  - Stock search: search field, "Stocks" section header, logo + ticker + name rows
+    (their Discover). Results are alphabetical, never ranked by return (locked).
+  - Stock detail: back/sheet, disc + name header, big price, change line, full-width
+    line chart with time-range pills beneath, stats rows, then the action.
+Reject from Roi:
+  - Trade button: the app never recommends or sells a stock; stock choice lives in
+    the slip. The detail sheet ends in education and a Done.
+  - Price-history charts we cannot source honestly. Our stock chart is the $100
+    projection curve at the disclosed 10-yr average, horizon pills 1/5/10/20/25,
+    disclaimer always (locked).
+  - Watchlist star until stock_favorites ships (overhaul session 4).
+Chart rules (dataviz-validated): one axis, 2px lines, mint = you / coral = the
+sportsbook timeline (entity colors, validated for CVD on white: the coral line is
+always dashed as secondary encoding), legend for two series, text in ink tokens,
+tap a column to read exact values, baseline at $0, never a dual axis.
+```
+
 ## 2. Tokens
 
 Canvas and surfaces (light since Oct 2 PM, Owen's call: the product is light like the Hard Rock references, Partiful's native ground):

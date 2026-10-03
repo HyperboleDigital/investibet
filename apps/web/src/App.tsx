@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { sb, ENABLE_PROPS } from './lib/supabase';
 import Symbol from './Symbol';
-import { implied, basePoints, potSplit, project, marketOpen, stackOdds, stackPoints, bookValue } from '@investibet/core';
+import { implied, basePoints, potSplit, project, marketOpen, stackOdds, stackPoints, bookValue, counterfactualDelta } from '@investibet/core';
 
 /* ---------- types ---------- */
 type Game = { id: string; sport_key: string; league: string; home: string; away: string; commence_time: string; completed: boolean; home_score: number | null; away_score: number | null };
@@ -42,6 +42,31 @@ function Roll({ value, format = (n: number) => String(Math.round(n)) }: { value:
     return () => cancelAnimationFrame(raf);
   }, [value]);
   return <>{format(disp)}</>;
+}
+
+/* ---------- line chart: inline SVG, one axis, 2px lines, tap a column to read the values ---------- */
+function LineChart({ series, n, active, onActive, xLabels, label }: {
+  series: { color: string; vals: number[]; dash?: boolean; area?: boolean }[]; n: number;
+  active: number; onActive: (i: number) => void; xLabels: [string, string]; label: string;
+}) {
+  const W = 340, H = 150, L = 8, R = 8, T = 12, B = 22;
+  const max = Math.max(1, ...series.flatMap(s => s.vals)) * 1.06;
+  const x = (i: number) => L + (n > 1 ? (i * (W - L - R)) / (n - 1) : 0);
+  const y = (v: number) => T + (1 - v / max) * (H - T - B);
+  const pts = (vals: number[]) => vals.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' ');
+  const colW = (W - L - R) / Math.max(1, n - 1);
+  return <svg viewBox={`0 0 ${W} ${H}`} width="100%" role="img" aria-label={label} style={{ display: 'block', touchAction: 'pan-y' }}>
+    {[0.25, 0.5, 0.75].map(f => <line key={f} x1={L} x2={W - R} y1={T + f * (H - T - B)} y2={T + f * (H - T - B)} stroke="var(--line)" strokeWidth="1" />)}
+    <line x1={L} x2={W - R} y1={y(0)} y2={y(0)} stroke="var(--line)" strokeWidth="1.5" />
+    {series.map((s, si) => <g key={si}>
+      {s.area && <polygon points={`${x(0)},${y(0)} ${pts(s.vals)} ${x(n - 1)},${y(0)}`} fill={s.color} opacity="0.08" />}
+      <polyline points={pts(s.vals)} fill="none" stroke={s.color} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" strokeDasharray={s.dash ? '5 4' : undefined} />
+      <circle cx={x(active)} cy={y(s.vals[active])} r="4.5" fill={s.color} stroke="#fff" strokeWidth="2" />
+    </g>)}
+    {Array.from({ length: n }, (_, i) => <rect key={i} x={x(i) - colW / 2} y={0} width={colW} height={H} fill="transparent" onPointerDown={() => onActive(i)} onPointerEnter={() => onActive(i)} />)}
+    <text x={L} y={H - 6} fontSize="10" fill="var(--dim)">{xLabels[0]}</text>
+    <text x={W - R} y={H - 6} fontSize="10" fill="var(--dim)" textAnchor="end">{xLabels[1]}</text>
+  </svg>;
 }
 
 /* ---------- data hook ---------- */
@@ -116,6 +141,7 @@ const TABS: [Tab, string, string][] = [['home', 'Home', 'home'], ['picks', 'Pick
 function Shell({ session }: { session: Session }) {
   const d = useData(session); const [tab, setTab] = useState<Tab>('home');
   const [cart, setCart] = useState<Leg[]>([]); const [slipOpen, setSlipOpen] = useState(false); const [brokerOpen, setBrokerOpen] = useState(false);
+  const [stockOpen, setStockOpen] = useState<string | null>(null);
   const [stake, setStake] = useState(() => Number(localStorage.getItem('ib_stake')) || 20);
   const [toast, setToast] = useState(''); const say = (m: string) => { setToast(m); setTimeout(() => setToast(''), 1800); };
   const gm = useMemo(() => Object.fromEntries(d.games.map(g => [g.id, g])), [d.games]);
@@ -137,10 +163,10 @@ function Shell({ session }: { session: Session }) {
 
   return <>
     {tab === 'home' && <header><div className="brand">Investi<span>bet</span></div></header>}
-    {tab === 'home' && <Home d={d} uid={session.user.id} cart={cart} onToggle={toggleLeg} onCup={() => setTab('cup')} />}
+    {tab === 'home' && <Home d={d} uid={session.user.id} cart={cart} onToggle={toggleLeg} onCup={() => setTab('cup')} onStock={setStockOpen} />}
     {tab === 'picks' && <Picks d={d} gm={gm} say={say} />}
     {tab === 'cup' && <Cup d={d} uid={session.user.id} />}
-    {tab === 'owned' && <Owned d={d} gm={gm} />}
+    {tab === 'owned' && <Owned d={d} gm={gm} onStock={setStockOpen} />}
     {tab === 'profile' && <ProfileTab d={d} gm={gm} say={say} onBroker={() => setBrokerOpen(true)} />}
     {cart.length > 0 && !slipOpen && <button className="selbar" onClick={() => setSlipOpen(true)}>
       <span className="n">{cart.length} {cart.length === 1 ? 'pick' : 'picks'}</span>
@@ -158,6 +184,7 @@ function Shell({ session }: { session: Session }) {
       brokerConnected={!!d.broker?.connected} onNeedBroker={() => setBrokerOpen(true)}
       onLocked={() => { setCart([]); setSlipOpen(false); d.reload(); }} />
     <BrokerSheet open={brokerOpen} current={d.broker} uid={session.user.id} onClose={() => setBrokerOpen(false)} onDone={() => { d.reload(); say('Connected (simulated)'); }} />
+    <StockSheet ticker={stockOpen} d={d} gm={gm} onClose={() => setStockOpen(null)} />
     <Reveals d={d} gm={gm} />
   </>;
 }
@@ -185,7 +212,7 @@ const ownedValue = (picks: Pick[], prices: Record<string, number>) =>
   picks.reduce((s, p) => s + (p.shares && prices[p.ticker] ? Number(p.shares) * prices[p.ticker] : Number(p.stake)), 0);
 
 /* ---------- home: chrome, hero, promo, league-grouped board ---------- */
-function Home({ d, uid, cart, onToggle, onCup }: { d: ReturnType<typeof useData>; uid: string; cart: Leg[]; onToggle: (g: Game, l: Line) => void; onCup: () => void }) {
+function Home({ d, uid, cart, onToggle, onCup, onStock }: { d: ReturnType<typeof useData>; uid: string; cart: Leg[]; onToggle: (g: Game, l: Line) => void; onCup: () => void; onStock: (t: string) => void }) {
   const [league, setLeague] = useState('All'); const [filter, setFilter] = useState<'trending' | 'live'>('trending'); const [q, setQ] = useState('');
   const [propsFor, setPropsFor] = useState<string | null>(null); const [propLines, setPropLines] = useState<Line[]>([]);
   const [openId, setOpenId] = useState<string | null>(null);
@@ -313,7 +340,7 @@ function Home({ d, uid, cart, onToggle, onCup }: { d: ReturnType<typeof useData>
 
     {stockHits.length > 0 && <div>
       <div className="lg-head"><Symbol name="chart" size={16} /><h3>Stocks</h3></div>
-      {stockHits.map(x => <div key={x.ticker} className="card srow-info"><div className="tk">{x.ticker}</div><div className="nm">{x.name}</div><div><div className="ln">+{x.avg_return_10y}%/yr</div><div className="dd">worst drop {x.max_drawdown}%</div></div></div>)}
+      {stockHits.map(x => <StockRow key={x.ticker} s={x} price={d.prices[x.ticker]} onOpen={onStock} />)}
       <p className="hint">Back any pick and your stake can buy it.</p>
     </div>}
 
@@ -532,8 +559,54 @@ function Cup({ d, uid }: { d: ReturnType<typeof useData>; uid: string }) {
   </section>;
 }
 
-/* ---------- owned: the live portfolio ---------- */
-function Owned({ d, gm }: { d: ReturnType<typeof useData>; gm: Record<string, Game> }) {
+/* ---------- stock row and detail sheet (ROI patterns: Discover rows, big-number detail) ---------- */
+const TIER_TAG = ['The favorite · steady', 'The value play · in between', 'The longshot · wild ride'];
+function StockRow({ s, price, onOpen, right }: { s: Stock; price?: number; onOpen: (t: string) => void; right?: { v: string; sub: string; dn?: boolean } }) {
+  return <button className="stockrow" onClick={() => onOpen(s.ticker)}>
+    <span className="sdisc" aria-hidden="true">{s.ticker.slice(0, 2)}</span>
+    <div><div className="tk">{s.ticker}</div><div className="nm">{s.name}</div></div>
+    {right ? <div><div className="pr">{right.v}</div><div className={'ch' + (right.dn ? ' dn' : '')}>{right.sub}</div></div>
+      : <div>{price ? <div className="pr">{fmt(price)}</div> : null}<div className="ch">+{s.avg_return_10y}%/yr</div></div>}
+  </button>;
+}
+
+function StockSheet({ ticker, d, gm, onClose }: { ticker: string | null; d: ReturnType<typeof useData>; gm: Record<string, Game>; onClose: () => void }) {
+  const [years, setYears] = useState(5); const [at, setAt] = useState<number | null>(null);
+  useEffect(() => { setYears(5); setAt(null); }, [ticker]);
+  const s = ticker ? d.stocks.find(x => x.ticker === ticker) : null;
+  if (!s) return <><div className="scrim" /><div className="sheet" /></>;
+  const price = d.prices[s.ticker];
+  const held = d.picks.filter(p => gm[p.game_id] && p.ticker === s.ticker && p.filled_at && p.shares);
+  const shares = held.reduce((t, p) => t + Number(p.shares), 0);
+  const cost = held.reduce((t, p) => t + Number(p.stake), 0);
+  const val = price ? shares * price : cost;
+  const curve = Array.from({ length: years + 1 }, (_, i) => project(100, s.avg_return_10y, i));
+  const ai = at ?? years;
+  return <><div className="scrim open" onClick={onClose} /><div className="sheet open">
+    <div className="grab" />
+    <div className="row"><div style={{ display: 'flex', alignItems: 'center', gap: 10 }}><span className="sdisc big" aria-hidden="true">{s.ticker.slice(0, 2)}</span>
+      <div><div className="side" style={{ fontSize: 20 }}>{s.ticker}</div><div className="nm" style={{ fontSize: 13, color: 'var(--muted)' }}>{s.name}</div></div></div>
+      {price ? <div style={{ textAlign: 'right' }}><div style={{ fontWeight: 800, fontSize: 20 }}>{fmt(price)}</div><div className="small">latest price</div></div> : null}</div>
+    <div className="eyebrow" style={{ marginTop: 8 }}>{TIER_TAG[s.tier] ?? ''}</div>
+    <div className="row" style={{ marginTop: 10 }}>
+      <span className="small">10-yr avg return <b className="mint">+{s.avg_return_10y}%/yr</b></span>
+      <span className="small">worst drop <b>{s.max_drawdown}%</b></span>
+    </div>
+    <div className="readout" style={{ marginTop: 16 }}>$100 becomes ~<b className="mint"><Roll value={project(100, s.avg_return_10y, ai)} format={fmt0} /></b> after {ai} {ai === 1 ? 'year' : 'years'}</div>
+    <LineChart series={[{ color: 'var(--mint)', vals: curve, area: true }]} n={years + 1} active={ai} onActive={setAt} xLabels={['Now', `${years} yrs`]} label={`Projection of $100 in ${s.ticker} over ${years} years`} />
+    <div className="chips">{[1, 5, 10, 20, 25].map(y => <button key={y} className={'chip ' + (years === y ? 'on' : '')} onClick={() => { setYears(y); setAt(null); }}>{y} yr</button>)}</div>
+    {shares > 0 && <div className="card" style={{ margin: '10px 0' }}>
+      <div style={{ fontWeight: 700 }}>You own {shares.toFixed(4)} shares</div>
+      <div className="meta" style={{ marginTop: 4 }}>{fmt0(cost)} staked · now {fmt(val)} · <b className={val - cost >= 0 ? 'mint' : ''}>{val - cost >= 0 ? '+' : ''}{fmt(val - cost)}</b></div>
+    </div>}
+    <div className="disc">Hypothetical, using the approximate 10-year average annual return and worst peak-to-trough drop. Past returns do not predict future results. Investibet never recommends a stock; any pick can be backed with any stock on the board. Not advice.</div>
+    <button className="btn ghost" style={{ marginTop: 10 }} onClick={onClose}>Done</button>
+  </div></>;
+}
+
+/* ---------- owned: the live portfolio, its chart, and stock search ---------- */
+function Owned({ d, gm, onStock }: { d: ReturnType<typeof useData>; gm: Record<string, Game>; onStock: (t: string) => void }) {
+  const [q, setQ] = useState(''); const [view, setView] = useState<'owned' | 'book'>('owned'); const [at, setAt] = useState<number | null>(null);
   const mine = d.picks.filter(p => gm[p.game_id]);
   const filled = mine.filter(p => p.filled_at && p.shares);
   const pending = mine.filter(p => !p.filled_at);
@@ -547,30 +620,55 @@ function Owned({ d, gm }: { d: ReturnType<typeof useData>; gm: Record<string, Ga
   const move = holdings.reduce((s, h) => s + (h.value - h.cost), 0);
   const proj = (y: number) => holdings.reduce((s, h) => s + project(h.value, h.stock?.avg_return_10y ?? 10, y), 0) + pending.reduce((s, p) => s + project(Number(p.stake), d.stocks.find(x => x.ticker === p.ticker)?.avg_return_10y ?? 10, y), 0);
 
-  if (!mine.length) return <section className="view"><h2 style={{ fontSize: 22 }}>Owned</h2>
-    <div className="card calm"><div style={{ fontWeight: 700 }}>Nothing owned yet</div><p className="hint" style={{ margin: '6px 0 0' }}>Back a pick on Home. Win or miss, the stake buys stock that shows up here.</p></div>
-  </section>;
+  // The two timelines, pick by pick in lock order; the last point is today at market value
+  const chrono = [...mine].sort((a, b) => a.locked_at.localeCompare(b.locked_at));
+  const ownedPts = [0]; const bookPts = [0]; let oc = 0, bc = 0;
+  for (const p of chrono) { oc += Number(p.stake); bc += Number(p.stake) + counterfactualDelta(Number(p.stake), p.odds, p.status as 'won' | 'lost' | 'push' | 'void' | 'pending'); ownedPts.push(oc); bookPts.push(bc); }
+  ownedPts.push(value); bookPts.push(bc);
+  const n = ownedPts.length;
+  const ai = Math.min(at ?? n - 1, n - 1);
+  const ptLabel = ai === 0 ? 'At the start' : ai === n - 1 ? 'Today' : `After pick ${ai}`;
+  const diff = ownedPts[ai] - bookPts[ai];
+
+  const query = q.trim().toLowerCase();
+  const results = query ? d.stocks.filter(x => x.ticker.toLowerCase().includes(query) || x.name.toLowerCase().includes(query)).sort((a, b) => a.ticker.localeCompare(b.ticker)).slice(0, 20) : [];
 
   return <section className="view"><h2 style={{ fontSize: 22 }}>Owned</h2>
-    <div className="card">
-      <div className="small">Portfolio value</div>
-      <div className="big" style={{ margin: '4px 0' }}><Roll value={value} format={fmt0} /></div>
-      <div className="small">{fmt0(staked)} staked across {mine.length} picks{holdings.length ? <> · <b className={move >= 0 ? 'mint' : ''}>{move >= 0 ? '+' : ''}{fmt(move)}</b> since you bought</> : null}</div>
-    </div>
-    {holdings.map(h => <div key={h.ticker} className="card">
-      <div className="row"><div><div style={{ fontWeight: 700, fontSize: 17 }}>{h.ticker}</div><div className="small">{h.stock?.name ?? ''}</div></div>
-        <div style={{ textAlign: 'right' }}><div style={{ fontWeight: 700 }}>{fmt(h.value)}</div><div className="small">{h.shares.toFixed(4)} shares</div></div></div>
-      <div className="small" style={{ marginTop: 8 }}>Bought at avg {fmt(h.cost / h.shares)} per share · <b className={h.value - h.cost >= 0 ? 'mint' : ''}>{h.value - h.cost >= 0 ? '+' : ''}{fmt(h.value - h.cost)}</b></div>
-      <div className="ladder" style={{ marginTop: 10 }}>{[1, 5, 10].map(y => <div key={y}><div className="l">{y} yr</div><div className="v">{fmt0(project(h.value, h.stock?.avg_return_10y ?? 10, y))}</div></div>)}</div>
-    </div>)}
-    {pending.length > 0 && <div className="card">
-      <div style={{ fontWeight: 700 }}>Buying at next market open</div>
-      {pending.map(p => <div key={p.id} className="small" style={{ marginTop: 6 }}>{fmt0(Number(p.stake))} of {p.ticker}</div>)}
-    </div>}
-    <div className="card"><div className="small" style={{ marginBottom: 8 }}>If everything here grew at its 10-year average</div>
-      <div className="ladder"><div><div className="l">1 yr</div><div className="v">{fmt0(proj(1))}</div></div><div><div className="l">5 yr</div><div className="v">{fmt0(proj(5))}</div></div><div><div className="l">10 yr</div><div className="v">{fmt0(proj(10))}</div></div></div>
-      <div className="disc">Hypothetical. Uses each ticker's approximate 10-year average annual return. Past returns do not predict future results. Nothing here is investment advice.</div></div>
-    <div className="disc">Day-by-day movement arrives once the engine stores daily closes. Until then, movement is measured from your buy price.</div>
+    <div className="searchbar"><Symbol name="magnifyingglass" size={16} /><input className="search" placeholder="Find a stock" aria-label="Find a stock" value={q} onChange={e => setQ(e.target.value)} /></div>
+    {query ? <>
+      <div className="lg-head"><Symbol name="chart" size={16} /><h3>Stocks</h3></div>
+      {results.length ? results.map(x => <StockRow key={x.ticker} s={x} price={d.prices[x.ticker]} onOpen={onStock} />)
+        : <div className="empty"><Symbol name="magnifyingglass" size={48} /><p>Nothing matches "{q.trim()}". Try the ticker or the name.</p></div>}
+      <div className="disc">Alphabetical, never ranked by return. Investibet never recommends a stock.</div>
+    </> : !mine.length ? <div className="card calm"><div style={{ fontWeight: 700 }}>Nothing owned yet</div><p className="hint" style={{ margin: '6px 0 0' }}>Back a pick on Home. Win or miss, the stake buys stock that shows up here. Search above to read up on any stock first.</p></div>
+    : <>
+      <div className="card">
+        <div className="small">Portfolio value</div>
+        <div className="big" style={{ margin: '4px 0' }}><Roll value={value} format={fmt0} /></div>
+        <div className="small">{fmt0(staked)} staked across {mine.length} picks{holdings.length ? <> · <b className={move >= 0 ? 'mint' : ''}>{move >= 0 ? '+' : ''}{fmt(move)}</b> since you bought</> : null}</div>
+      </div>
+      <div className="card">
+        <div className="seg">{([['owned', 'Owned'], ['book', 'Vs a sportsbook']] as const).map(([k, l]) => <button key={k} className={view === k ? 'on' : ''} onClick={() => setView(k)}>{l}</button>)}</div>
+        <LineChart n={n} active={ai} onActive={setAt} xLabels={['Start', 'Today']} label="Your money over time"
+          series={view === 'owned' ? [{ color: 'var(--mint)', vals: ownedPts, area: true }]
+            : [{ color: 'var(--mint)', vals: ownedPts }, { color: 'var(--coral)', vals: bookPts, dash: true }]} />
+        <div className="readout">{ptLabel}: you own {fmt0(ownedPts[ai])}{view === 'book' ? <> · a sportsbook would hold {fmt0(bookPts[ai])}</> : null}
+          {view === 'book' && <div className="sub">{diff >= 0 ? `That is ${fmt0(diff)} more than the betting timeline.` : `${fmt0(-diff)} behind the betting timeline for now. The stock is still yours.`}</div>}
+        </div>
+        {view === 'book' && <div className="legend"><span><i className="dt" style={{ background: 'var(--mint)' }} />You own</span><span><i className="dt" style={{ background: 'var(--coral)' }} />Sportsbook timeline</span></div>}
+        <div className="disc">Each step is a locked pick; the last point is today's value. The dashed line is what the same stakes would have left at a sportsbook. Tap the chart to walk through it.</div>
+      </div>
+      {holdings.map(h => <StockRow key={h.ticker} s={h.stock ?? { ticker: h.ticker, name: '', tier: 0, avg_return_10y: 10, max_drawdown: 0 }} onOpen={onStock}
+        right={{ v: fmt(h.value), sub: `${h.value - h.cost >= 0 ? '+' : ''}${fmt(h.value - h.cost)}`, dn: h.value - h.cost < 0 }} />)}
+      {pending.length > 0 && <div className="card">
+        <div style={{ fontWeight: 700 }}>Buying at next market open</div>
+        {pending.map(p => <div key={p.id} className="small" style={{ marginTop: 6 }}>{fmt0(Number(p.stake))} of {p.ticker}</div>)}
+      </div>}
+      <div className="card"><div className="small" style={{ marginBottom: 8 }}>If everything here grew at its 10-year average</div>
+        <div className="ladder"><div><div className="l">1 yr</div><div className="v">{fmt0(proj(1))}</div></div><div><div className="l">5 yr</div><div className="v">{fmt0(proj(5))}</div></div><div><div className="l">10 yr</div><div className="v">{fmt0(proj(10))}</div></div></div>
+        <div className="disc">Hypothetical. Uses each ticker's approximate 10-year average annual return. Past returns do not predict future results. Nothing here is investment advice.</div></div>
+      <div className="disc">Day-by-day movement arrives once the engine stores daily closes. Until then, movement is measured from your buy price.</div>
+    </>}
   </section>;
 }
 
