@@ -120,18 +120,15 @@ header{display:flex;align-items:center;justify-content:space-between;padding:18p
 .bleed{margin:6px -16px 0}
 .alloc{display:flex;gap:2px;height:10px;border-radius:5px;overflow:hidden;margin:18px 0 2px}
 .alloc span{min-width:3px}
-/* Same stakes, two endings: a two-bar face-off reads better than two tangled lines */
-.vsbook{background:var(--bg2);border:1px solid var(--line);border-radius:14px;padding:14px 16px;margin:14px 0 4px}
-.vsbook .vb-t{font-weight:800;font-size:15px;letter-spacing:-.02em;margin-bottom:10px}
-.vb-row{display:grid;grid-template-columns:92px 1fr auto;gap:10px;align-items:center;margin:8px 0}
-.vb-l{font-size:12.5px;font-weight:600;color:var(--muted)}
-.vb-track{height:14px;border-radius:7px;background:var(--bg3);overflow:hidden}
-.vb-bar{display:block;height:100%;border-radius:7px;animation:grow .7s cubic-bezier(.2,.9,.3,1.05)}
-.vb-bar.you{background:linear-gradient(90deg,var(--peri),var(--mint))}
-.vb-bar.book{background:var(--coral);opacity:.85}
-.vb-v{font-size:14px;font-weight:800;min-width:48px;text-align:right}
-.vsbook .sub{font-size:12px;color:var(--muted);margin-top:10px;line-height:1.4}
-@keyframes grow{from{width:0}}
+/* If this were a sportsbook: one loud number, then the receipts */
+.vsbook{background:var(--coral2),var(--bg2);background:linear-gradient(0deg,rgba(232,80,58,.06),rgba(232,80,58,.06)),var(--bg2);border:1px solid var(--line);border-radius:14px;padding:14px 16px;margin:14px 0 4px}
+.vsbook .vb-t{font-weight:800;font-size:15px;letter-spacing:-.02em}
+.vb-big{font-size:34px;font-weight:800;letter-spacing:-.04em;color:var(--coral);margin:4px 0 2px}
+.vb-big.plus{color:var(--ink)}
+.vsbook .sub{font-size:12.5px;color:var(--muted);line-height:1.45}
+.vb-rows{margin-top:12px}
+.vb-li{font-size:13px;color:var(--muted);padding:8px 0;border-top:1px solid var(--line);line-height:1.45}
+.vb-li b{color:var(--ink)}.vb-li b.coral{color:var(--coral)}.vb-li b.mint{color:var(--mint)}
 .pendrow{display:flex;align-items:center;gap:12px;padding:12px 6px;border-bottom:1px solid var(--line)}
 .pendrow .tk{font-weight:700;font-size:15px}
 .chip.slim{min-height:38px;padding:0 12px}

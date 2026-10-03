@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { basePoints, grade, scoreSequence, bestFifteen, potSplit, counterfactualDelta, implied, decimalOdds, stackOdds, stackPoints, bookValue } from './index';
+import { basePoints, grade, scoreSequence, bestFifteen, potSplit, counterfactualDelta, implied, decimalOdds, stackOdds, stackPoints, bookValue, project, projectCapped } from './index';
 
 describe('points', () => {
   it('equals the odds', () => { expect(basePoints(170)).toBe(170); expect(basePoints(-200)).toBe(50); expect(basePoints(-110)).toBe(91); });
@@ -45,6 +45,14 @@ describe('stacks', () => {
     expect(stackOdds([200, 150])).toBe(650);
   });
   it('stack points ride the flat $100 basis', () => { expect(stackPoints([200, 150])).toBe(650); expect(stackPoints([-110, -110])).toBe(264); });
+});
+
+describe('projections', () => {
+  it('caps the compounding rate at 20 percent', () => {
+    expect(projectCapped(100, 70, 10)).toBeCloseTo(project(100, 20, 10));
+    expect(projectCapped(100, 8, 5)).toBeCloseTo(project(100, 8, 5));
+    expect(projectCapped(120, 70, 25)).toBeLessThan(12000);
+  });
 });
 
 describe('pot and counterfactual', () => {

@@ -2,7 +2,7 @@ import { useEffect, useId, useMemo, useRef, useState, useCallback } from 'react'
 import type { Session } from '@supabase/supabase-js';
 import { sb, ENABLE_PROPS } from './lib/supabase';
 import Symbol from './Symbol';
-import { implied, basePoints, potSplit, project, marketOpen, stackOdds, stackPoints, bookValue, counterfactualDelta } from '@investibet/core';
+import { implied, basePoints, potSplit, projectCapped, marketOpen, stackOdds, stackPoints, bookValue, counterfactualDelta } from '@investibet/core';
 
 /* ---------- types ---------- */
 type Game = { id: string; sport_key: string; league: string; home: string; away: string; commence_time: string; completed: boolean; home_score: number | null; away_score: number | null; period?: number | null; clock?: string | null };
@@ -350,7 +350,7 @@ function Home({ d, uid, cart, onToggle, onCup, onStock, openId, setOpenId }: { d
   const invested = mine.reduce((s, p) => s + Number(p.stake), 0);
   const kept = invested - book; // what the same picks would have cost at a sportsbook so far
   const retPct = invested ? ((value - invested) / invested) * 100 : 0;
-  const proj5 = mine.reduce((s, p) => { const st = d.stocks.find(x => x.ticker === p.ticker); const cur = p.shares && d.prices[p.ticker] ? Number(p.shares) * d.prices[p.ticker] : Number(p.stake); return s + project(cur, st?.avg_return_10y ?? 10, 5); }, 0);
+  const proj5 = mine.reduce((s, p) => { const st = d.stocks.find(x => x.ticker === p.ticker); const cur = p.shares && d.prices[p.ticker] ? Number(p.shares) * d.prices[p.ticker] : Number(p.stake); return s + projectCapped(cur, st?.avg_return_10y ?? 10, 5); }, 0);
   const weekStaked = mine.filter(p => gm[p.game_id] && sameWeek(gm[p.game_id].commence_time)).reduce((s, p) => s + Number(p.stake), 0);
   const streak = d.profile?.streak ?? 0;
   const stockHits = query ? d.stocks.filter(x => x.ticker.toLowerCase().includes(query) || x.name.toLowerCase().includes(query)).slice(0, 5) : [];
@@ -478,7 +478,7 @@ function Home({ d, uid, cart, onToggle, onCup, onStock, openId, setOpenId }: { d
     {invested > 0 && <div className="proj5">
       <div className="l">In 5 years this could be</div>
       <div className="v">~<Roll value={proj5} format={fmt0} /></div>
-      <div className="s">at your holdings' 10-yr averages · {retPct >= 0 ? '+' : ''}{retPct.toFixed(1)}% so far · hypothetical, never advice</div>
+      <div className="s">at your stocks' past averages, growth capped at 20%/yr · {retPct >= 0 ? '+' : ''}{retPct.toFixed(1)}% so far · hypothetical, never advice</div>
     </div>}
 
     <Promo d={d} uid={uid} invested={invested} onCup={onCup} />
@@ -564,7 +564,7 @@ function Slip({ d, legs, stake, setStake, onRemove, onClose, onLocked, say, brok
     {single ? <>
       <div className="stake">{fmt0(stake)}</div>
       <input type="range" min={5} max={100} step={5} value={stake} onChange={e => setStake(+e.target.value)} aria-label="Stake" />
-      <div className="trio"><div><div className="l">Win</div><div className="v mint">{points} pts</div></div><div><div className="l">Miss</div><div className="v">keep {fmt0(stake)}</div></div><div><div className="l">In 5 years</div><div className="v gold">{s ? '~' + fmt0(project(stake, s.avg_return_10y, 5)) : 'pick a stock'}</div></div></div>
+      <div className="trio"><div><div className="l">Win</div><div className="v mint">{points} pts</div></div><div><div className="l">Miss</div><div className="v">keep {fmt0(stake)}</div></div><div><div className="l">In 5 years</div><div className="v gold">{s ? '~' + fmt0(projectCapped(stake, s.avg_return_10y, 5)) : 'pick a stock'}</div></div></div>
       <div style={{ fontWeight: 700, marginBottom: 6 }}>What does it buy?</div>
       <div className="chips">{TIERS.map((t, i) => <button key={t} className={'chip ' + (tier === i && !q ? 'on' : '')} onClick={() => { setTier(i); setQ(''); }}>{t}</button>)}</div>
       <input className="search" placeholder="Search tickers" value={q} onChange={e => setQ(e.target.value)} />
@@ -782,7 +782,7 @@ function StockPage({ ticker, d, gm, onClose }: { ticker: string; d: ReturnType<t
   const shares = held.reduce((t, p) => t + Number(p.shares), 0);
   const cost = held.reduce((t, p) => t + Number(p.stake), 0);
   const val = latest ? shares * latest : cost;
-  const curve = Array.from({ length: years + 1 }, (_, i) => project(100, s.avg_return_10y, i));
+  const curve = Array.from({ length: years + 1 }, (_, i) => projectCapped(100, s.avg_return_10y, i));
   const ai = at ?? years;
   return <section className="view">
     <div className="row"><button className="back" aria-label="Back" onClick={onClose}><Symbol name="arrowleft" size={20} /></button><span className={`tag t${s.tier}`}>{(TIER_TAG[s.tier] ?? '').split(' · ')[0]}</span></div>
@@ -808,16 +808,16 @@ function StockPage({ ticker, d, gm, onClose }: { ticker: string; d: ReturnType<t
       <div className="meta" style={{ marginTop: 4 }}>{fmt0(cost)} staked · now {fmt(val)} · <b className={val - cost >= 0 ? 'mint' : ''}>{val - cost >= 0 ? '+' : ''}{fmt(val - cost)}</b></div>
     </div>}
     <div className="gp-sec">If it keeps its 10-year average</div>
-    <div className="readout">$100 becomes ~<b className="mint"><Roll value={project(100, s.avg_return_10y, ai)} format={fmt0} /></b> after {ai} {ai === 1 ? 'year' : 'years'}</div>
+    <div className="readout">$100 becomes ~<b className="mint"><Roll value={projectCapped(100, s.avg_return_10y, ai)} format={fmt0} /></b> after {ai} {ai === 1 ? 'year' : 'years'}</div>
     <LineChart series={[{ color: 'var(--mint)', vals: curve, area: true }]} n={years + 1} active={ai} onActive={setAt} xLabels={['Now', `${years} yrs`]} label={`Projection of $100 in ${s.ticker} over ${years} years`} />
-    <div className="chips">{[1, 5, 10, 20, 25].map(y => <button key={y} className={'chip ' + (years === y ? 'on' : '')} onClick={() => { setYears(y); setAt(null); }}>{y} yr</button>)}</div>
-    <div className="disc">Hypothetical, using the approximate 10-year average annual return and worst peak-to-trough drop. Past prices and returns do not predict future results. Investibet never recommends a stock; any pick can be backed with any stock on the board. Not advice.</div>
+    <div className="chips">{[1, 5, 10, 15].map(y => <button key={y} className={'chip ' + (years === y ? 'on' : '')} onClick={() => { setYears(y); setAt(null); }}>{y} yr</button>)}</div>
+    <div className="disc">Hypothetical, using the approximate 10-year average annual return (projections cap growth at 20% a year; a hot decade does not compound forever) and the worst peak-to-trough drop. Past prices and returns do not predict future results. Investibet never recommends a stock; any pick can be backed with any stock on the board. Not advice.</div>
   </section>;
 }
 
 /* ---------- owned: Roi's dashboard anatomy. Borderless hero, full-bleed worth chart with a dashed future, hairline groups. ---------- */
 const ALLOC = ['var(--mint)', 'var(--peri)', 'var(--gold)', '#E560B6', '#3FB6C9', '#8E8E93'];
-const HORIZONS = [1, 5, 10, 25];
+const HORIZONS = [1, 5, 10, 15];
 function Owned({ d, gm, onStock }: { d: ReturnType<typeof useData>; gm: Record<string, Game>; onStock: (t: string) => void }) {
   const [q, setQ] = useState(''); const [at, setAt] = useState<number | null>(null);
   const [lane, setLane] = useState(0); const [horizon, setHorizon] = useState(5);
@@ -842,8 +842,8 @@ function Owned({ d, gm, onStock }: { d: ReturnType<typeof useData>; gm: Record<s
   const ownedPts = [0]; const bookPts = [0]; let oc = 0, bc = 0;
   for (const p of chrono) { oc += Number(p.stake); bc += Number(p.stake) + counterfactualDelta(Number(p.stake), p.odds, p.status as 'won' | 'lost' | 'push' | 'void' | 'pending'); ownedPts.push(oc); bookPts.push(bc); }
   ownedPts.push(value); bookPts.push(bc);
-  const projAt = (y: number) => holdings.reduce((s, h) => s + project(h.value, h.stock?.avg_return_10y ?? 10, y), 0)
-    + pending.reduce((s, p) => s + project(Number(p.stake), d.stocks.find(x => x.ticker === p.ticker)?.avg_return_10y ?? 10, y), 0);
+  const projAt = (y: number) => holdings.reduce((s, h) => s + projectCapped(h.value, h.stock?.avg_return_10y ?? 10, y), 0)
+    + pending.reduce((s, p) => s + projectCapped(Number(p.stake), d.stocks.find(x => x.ticker === p.ticker)?.avg_return_10y ?? 10, y), 0);
   const FUT = 8;
   const future = Array.from({ length: FUT + 1 }, (_, k) => projAt((horizon * k) / FUT));
   const n = ownedPts.length + FUT;
@@ -853,6 +853,13 @@ function Owned({ d, gm, onStock }: { d: ReturnType<typeof useData>; gm: Record<s
   const aOwn = ai <= ti ? ownedPts[ai] : future[ai - ti];
   const ptLabel = ai === 0 ? 'At the start' : ai === ti ? 'Today' : ai < ti ? `After pick ${ai}` : `In ~${futYears < 1 ? Math.round(futYears * 12) + ' months' : (Math.round(futYears * 10) / 10) + ' years'}`;
   const keptNow = staked - bc;
+  const lostPicks = mine.filter(p => p.status === 'lost');
+  const wonPicks = mine.filter(p => p.status === 'won');
+  const pendingPicks = mine.filter(p => p.status === 'pending');
+  const lostStake = lostPicks.reduce((s, p) => s + Number(p.stake), 0);
+  const lostVal = lostPicks.reduce((s, p) => s + (p.shares && d.prices[p.ticker] ? Number(p.shares) * d.prices[p.ticker] : Number(p.stake)), 0);
+  const wonPay = wonPicks.reduce((s, p) => s + counterfactualDelta(Number(p.stake), p.odds, 'won'), 0);
+  const wonPts = Math.round(wonPicks.reduce((s, p) => s + Number(p.points), 0));
 
   const query = q.trim().toLowerCase();
   const results = query ? d.stocks.filter(x => x.ticker.toLowerCase().includes(query) || x.name.toLowerCase().includes(query)).sort((a, b) => a.ticker.localeCompare(b.ticker)).slice(0, 20) : [];
@@ -884,14 +891,24 @@ function Owned({ d, gm, onStock }: { d: ReturnType<typeof useData>; gm: Record<s
         </div>
         <div className="chips">{HORIZONS.map(h => <button key={h} className={'chip slim ' + (horizon === h ? 'on' : '')} onClick={() => { setHorizon(h); setAt(null); }}>+{h} {h === 1 ? 'year' : 'years'}</button>)}</div>
         <div className="readout">{ptLabel}: {ai > ti && '~'}{mask(fmt0(aOwn))} {ai > ti && <span className="sub" style={{ display: 'inline' }}>at 10-yr averages</span>}</div>
-        <div className="disc" style={{ marginTop: 6 }}>Solid: every locked pick, ending at today's value. Dashed: hypothetical growth at each holding's approximate 10-year average, drawn on a compressed (logarithmic) scale so today and the far future both stay visible. Tap to walk the line. Past returns do not predict future results. Not advice.</div>
+        <div className="disc" style={{ marginTop: 6 }}>Solid: what your picks put in, through today. Dashed: if it grew at your stocks' past 10-year averages, capped at 20% a year, on a squeezed scale so both ends fit. Tap to walk it. Hypothetical, never advice.</div>
         <div className="vsbook">
-          <div className="vb-t">Same stakes, two endings</div>
-          <div className="vb-row"><span className="vb-l">You own</span><div className="vb-track"><i className="vb-bar you" style={{ width: `${Math.max(4, (value / Math.max(value, bc, 1)) * 100)}%` }} /></div><span className="vb-v mint">{mask(fmt0(value))}</span></div>
-          <div className="vb-row"><span className="vb-l">A sportsbook</span><div className="vb-track"><i className="vb-bar book" style={{ width: `${Math.max(4, (bc / Math.max(value, bc, 1)) * 100)}%` }} /></div><span className="vb-v coral">{mask(fmt0(bc))}</span></div>
-          <div className="sub">{keptNow > 0.005 ? `A sportsbook would have kept ${fmt0(keptNow)} of your stakes by now. You invested them instead.`
-            : keptNow < -0.005 ? `Betting would be up ${fmt0(-keptNow)} so far. You own the stock either way.`
-            : 'Nothing settled yet. A missed pick here still buys the stock.'}</div>
+          <div className="vb-t">If this were a sportsbook</div>
+          {keptNow > 0.005 ? <>
+            <div className="vb-big">-{fmt(keptNow)}</div>
+            <div className="sub">of your stakes would be gone by now. Here that money stayed yours, inside the {mask(fmt0(value))} you own.</div>
+          </> : keptNow < -0.005 ? <>
+            <div className="vb-big plus">+{fmt(-keptNow)}</div>
+            <div className="sub">a book would be paying you so far. The difference here: you also still own every dollar you staked.</div>
+          </> : <>
+            <div className="vb-big">$0</div>
+            <div className="sub">nothing settled yet. At a book a missed pick is gone; here it buys the stock anyway.</div>
+          </>}
+          {(lostPicks.length > 0 || wonPicks.length > 0 || pendingPicks.length > 0) && <div className="vb-rows">
+            {lostPicks.length > 0 && <div className="vb-li"><b>{lostPicks.length} missed</b> · a book keeps <b className="coral">{fmt0(lostStake)}</b> · here you own <b className="mint">{fmt0(lostVal)}</b> of that stock</div>}
+            {wonPicks.length > 0 && <div className="vb-li"><b>{wonPicks.length} won</b> · a book pays {fmt0(wonPay)} cash · here: <b className="mint">{wonPts} pts</b> toward the pot, and the stock stays</div>}
+            {pendingPicks.length > 0 && <div className="vb-li"><b>{pendingPicks.length} pending</b> · {fmt0(pendingPicks.reduce((s, p) => s + Number(p.stake), 0))} riding either way</div>}
+          </div>}
         </div>
 
         {allocTotal > 0 && <div className="alloc" aria-hidden="true">

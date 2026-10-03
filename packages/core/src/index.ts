@@ -134,6 +134,12 @@ export const bookValue = (picks: { stake: number; odds: number; status: Status }
 export const project = (invested: number, avgReturnPct: number, years: number) =>
   invested * Math.pow(1 + avgReturnPct / 100, years);
 
+/** User-facing projections cap the growth rate: a hot decade does not compound forever.
+ *  NVDA's trailing 70%/yr over 25 years is $69M from $120, which is noise, not information. */
+export const PROJECT_CAP_PCT = 20;
+export const projectCapped = (invested: number, avgReturnPct: number, years: number) =>
+  project(invested, Math.min(avgReturnPct, PROJECT_CAP_PCT), years);
+
 /** True while the US market is open (9:30 to 16:00 ET, Mon to Fri). Holidays ignored in v1. */
 export function marketOpen(at: Date): boolean {
   const et = new Date(at.toLocaleString('en-US', { timeZone: 'America/New_York' }));
