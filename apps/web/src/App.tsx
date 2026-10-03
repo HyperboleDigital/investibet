@@ -362,29 +362,31 @@ function Home({ d, uid, cart, onToggle, onCup, onStock, openId, setOpenId }: { d
   const stockHits = query ? d.stocks.filter(x => x.ticker.toLowerCase().includes(query) || x.name.toLowerCase().includes(query)).slice(0, 5) : [];
 
   // Market grid: one row per side, Spread / Total / Winner, points leading every pill.
-  // Pills stay tappable through the live hold window, then per-line freshness decides.
+  // Pills stay tappable through the live hold window; a closed live market shows a lock.
+  const mhead = <div className="mhead" aria-hidden="true"><span />{MKS.map(([k, l]) => <span key={k}>{l}</span>)}</div>;
   const grid = (g: Game) => {
     const myPicks = d.picks.filter(p => p.game_id === g.id);
+    const started = Date.parse(g.commence_time) <= now;
     return <>
-      <div className="mhead" aria-hidden="true"><span />{MKS.map(([k, l]) => <span key={k}>{l}</span>)}</div>
-      {[g.away, g.home].map((name, i) => { const t = team(name); return <div className="mrow" key={name}>
-        <div className="tname" title={name}><Mono t={t} /><div className="tt"><span className="ab">{t.abbreviation}</span><span className="sn">{t.short_name}</span><span className="tbar" style={t.ui_color ? { background: t.ui_color } : undefined} /></div></div>
+      {[g.away, g.home].map((name, i) => { const t = team(name); const sc = i === 0 ? g.away_score : g.home_score; return <div className="mrow" key={name}>
+        <div className="tname" title={name}><Mono t={t} /><span className="nm2">{t.short_name}</span>{started && sc != null && <span className="scorechip">{sc}</span>}</div>
         {MKS.map(([mk]) => {
           const sel = mk === 'totals' ? (i === 0 ? 'Over' : 'Under') : name;
           const l = lineFor(g, mk, sel);
           const has = myPicks.find(p => p.market === mk && p.selection === sel); const opp = myPicks.find(p => p.market === mk && p.selection !== sel);
           const inCart = !!l && cart.some(x => legKey(x.line) === legKey(l));
+          const lockedOut = !!l && !lockableLine(g, l, now);
           const tail = l ? `${basePoints(l.price)} points, ${spoken(l.price)}, ${Math.round(implied(l.price) * 100)} percent implied` : '';
-          const label = !l ? `${mk === 'totals' ? sel : name}, no line`
+          const label = !l ? `${mk === 'totals' ? sel : name}, no line` : lockedOut ? `${sel}, market locked`
             : mk === 'h2h' ? `${name}, ${tail}`
             : mk === 'spreads' ? `${name} ${spoken(l.point ?? 0)}, ${tail}`
             : `${sel} ${l.point}, ${tail}`;
-          return <button key={mk} className={'mpill ' + (inCart ? 'sel' : has ? 'locked' : '')} disabled={!l || !lockableLine(g, l, now) || !!has || !!opp} aria-label={label} aria-pressed={inCart} onClick={e => { e.stopPropagation(); if (l) onToggle(g, l); }}>
-            {l ? <>
+          return <button key={mk} className={'mpill ' + (inCart ? 'sel' : has ? 'locked' : lockedOut ? 'lockout' : '')} disabled={!l || lockedOut || !!has || !!opp} aria-label={label} aria-pressed={inCart} onClick={e => { e.stopPropagation(); if (l) onToggle(g, l); }}>
+            {!l ? <span className="sb">—</span> : lockedOut && !has ? <Symbol name="lock" size={20} /> : <>
               {mk !== 'h2h' && <span className="ln">{mk === 'totals' ? `${i === 0 ? 'O' : 'U'} ${l.point}` : pt(l.point)}</span>}
               <span className="od">{basePoints(l.price)}<i className="u">pts</i></span>
               <span className="sb">{oddsTxt(l.price)} · {Math.round(implied(l.price) * 100)}%</span>
-            </> : <span className="sb">—</span>}
+            </>}
           </button>;
         })}
       </div>; })}
@@ -400,8 +402,7 @@ function Home({ d, uid, cart, onToggle, onCup, onStock, openId, setOpenId }: { d
   const liveLine = (g: Game) => {
     const k = Date.parse(g.commence_time);
     const holdLeft = Math.ceil((LIVE_HOLD - (now - k)) / 60e3);
-    const score = g.home_score != null && g.away_score != null ? ` · ${g.away_score}-${g.home_score}` : '';
-    return <><span className="livetag"><i className="ld" />LIVE</span><b>{score}</b>{holdLeft > 0 && <span>· lines hold {holdLeft} min</span>}</>;
+    return <><span className="livetag"><i className="ld" />{periodLabel(g)}</span>{holdLeft > 0 && <span>· lines hold {holdLeft} min</span>}</>;
   };
   const card = (g: Game) => {
     const k = new Date(g.commence_time); const started = k.getTime() <= now; const { day, time } = kickoffLabel(k);
@@ -440,7 +441,7 @@ function Home({ d, uid, cart, onToggle, onCup, onStock, openId, setOpenId }: { d
       <div className="gp-title"><span>{team(g.away).short_name}</span><span className="at">@</span><span>{team(g.home).short_name}</span></div>
       <div className="gp-kick"><Symbol name="calendar" size={13} />{g.completed ? `Final · ${g.away_score}-${g.home_score}` : started ? liveLine(g) : `${day}, ${time}`}<span>· {g.league}</span></div>
       <div className="gp-sec">Popular</div>
-      <div className="game">{grid(g)}</div>
+      <div className="game">{mhead}{grid(g)}</div>
       {sec('spreads', 'Spread', [team(g.away).abbreviation, team(g.home).abbreviation], <>{pill('spreads', g.away, 0)}{pill('spreads', g.home, 1)}</>)}
       {sec('totals', 'Total Points', ['Over', 'Under'], <>{pill('totals', 'Over', 0)}{pill('totals', 'Under', 1)}</>)}
       {sec('h2h', 'Winner', [team(g.away).abbreviation, team(g.home).abbreviation], <>{pill('h2h', g.away, 0)}{pill('h2h', g.home, 1)}</>)}
@@ -455,7 +456,7 @@ function Home({ d, uid, cart, onToggle, onCup, onStock, openId, setOpenId }: { d
     return <section className="view">
       <button className="back" aria-label="Back to the board" onClick={() => setOpenLg(null)}><Symbol name="arrowleft" size={20} /></button>
       <div className="lg-head" style={{ marginTop: 2 }}><Symbol name={LEAGUE_ICONS[openLg]} size={20} /><h3 style={{ fontSize: 24 }}>{openLg}</h3><span className="small" style={{ marginLeft: 'auto' }}>{lgGames.length} games</span></div>
-      {lgGames.length ? lgGames.map(card) : <div className="empty"><Symbol name={LEAGUE_ICONS[openLg]} size={48} /><p>No {openLg} games on the board right now.</p></div>}
+      {lgGames.length ? <>{mhead}{lgGames.map(card)}</> : <div className="empty"><Symbol name={LEAGUE_ICONS[openLg]} size={48} /><p>No {openLg} games on the board right now.</p></div>}
       <div className="disc">Lines refresh hourly before kickoff and hold for the first 15 minutes after. Tap a matchup for every market.</div>
     </section>;
   }
@@ -506,6 +507,7 @@ function Home({ d, uid, cart, onToggle, onCup, onStock, openId, setOpenId }: { d
       <div className="lg-head"><Symbol name={LEAGUE_ICONS[lg]} size={16} /><h3>{lg}</h3>
         {league === 'All' && <button className="more" onClick={() => { setOpenLg(lg); scrollTo(0, 0); }}>View more lines<Symbol name="chevron" size={12} /></button>}
       </div>
+      {mhead}
       {(league === 'All' ? gs.slice(0, CAP) : gs).map(card)}
     </div>)}
 

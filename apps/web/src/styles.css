@@ -51,9 +51,11 @@ header{display:flex;align-items:center;justify-content:space-between;padding:18p
 .searchbar{position:relative;margin:2px 0 8px}
 .searchbar svg{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--dim);pointer-events:none}
 .searchbar .search{padding-left:36px;margin-bottom:0}
-.game{margin:10px 0;padding:14px;border-radius:12px;background:var(--bg2);border:1px solid var(--line)}
+/* Hard Rock density: no boxes on the board, hairlines between games, air everywhere */
+.game{margin:0;padding:6px 0 14px;border-bottom:1px solid var(--line)}
+.game:last-child{border-bottom:0}
 .game.tap{cursor:pointer}
-.kick{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);margin-top:10px}.kick b{color:var(--gold)}
+.kick{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--muted);margin-top:8px}.kick b{color:var(--gold)}
 .kick .more-lines{margin-left:auto;display:inline-flex;align-items:center;gap:2px;font-weight:600;color:var(--dim)}
 .lg-head{display:flex;align-items:center;gap:8px;margin:20px 0 4px}
 .lg-head h3{font-size:17px;letter-spacing:-.02em}
@@ -156,26 +158,25 @@ header{display:flex;align-items:center;justify-content:space-between;padding:18p
 .readout .sub{font-size:12px;color:var(--muted);font-weight:400;margin-top:3px}
 .legend{display:flex;gap:16px;align-items:center;font-size:12px;color:var(--muted);margin-top:8px;flex-wrap:wrap}
 .legend .dt{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:5px}
-.mhead{display:grid;grid-template-columns:minmax(72px,1fr) repeat(3,minmax(0,80px));gap:6px;font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--dim);text-align:center;margin-bottom:2px}
+.mhead{display:grid;grid-template-columns:minmax(96px,1.1fr) repeat(3,1fr);gap:8px;font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--dim);text-align:center;margin:14px 0 2px}
 .mhead span:first-child{text-align:left}
-.mrow{display:grid;grid-template-columns:minmax(72px,1fr) repeat(3,minmax(0,80px));gap:6px;align-items:stretch;margin:6px 0}
-.tname{display:flex;align-items:center;gap:6px;min-width:0}
-.tname .tt{display:flex;flex-direction:column;min-width:0}
-.tname .ab{font-weight:700;font-size:14px;line-height:1.1}
-.tname .sn{font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mrow{display:grid;grid-template-columns:minmax(96px,1.1fr) repeat(3,1fr);gap:8px;align-items:stretch;margin:8px 0}
+.tname{display:flex;align-items:center;gap:8px;min-width:0;flex-wrap:wrap}
+.tname .nm2{font-size:16px;font-weight:600;letter-spacing:-.01em;line-height:1.2;min-width:0}
+.scorechip{background:var(--bg3);border-radius:8px;padding:3px 9px;font-weight:800;font-size:14px;flex:none}
 /* Monogram disc: team color as identity accent, never a fill behind copy. Neutral when no color cleared 3:1. */
-.mono{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:50%;background:var(--bg3);color:var(--muted);font-size:9.5px;font-weight:800;letter-spacing:.02em;flex:none}
+.mono{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:50%;background:var(--bg3);color:var(--muted);font-size:10.5px;font-weight:800;letter-spacing:.02em;flex:none}
 .divider{display:flex;align-items:center;gap:8px;margin:18px 0 2px;font-size:12px;font-weight:600;color:var(--dim)}
 .divider:after{content:"";flex:1;border-top:1px solid var(--line)}
 .divider .dot{width:8px;height:8px;border-radius:50%;background:var(--gold);animation:pulse 1.6s ease-out infinite}
 @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(192,138,20,.5)}100%{box-shadow:0 0 0 8px rgba(192,138,20,0)}}
-.mpill{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;min-height:56px;border-radius:12px;background:var(--bg3);border:1px solid transparent;padding:6px 4px;transition:transform .12s,background .12s,border-color .12s}
+.mpill{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;min-height:78px;border-radius:14px;background:var(--bg3);border:1px solid transparent;padding:8px 4px;transition:transform .12s,background .12s,border-color .12s}
 .mpill:active{transform:scale(.96)}
-.mpill .ln{font-size:12px;font-weight:600}
-.mpill .od{font-size:15px;font-weight:700;color:var(--mint)}
+.mpill .ln{font-size:16px;font-weight:600;letter-spacing:-.01em}
+.mpill .od{font-size:18px;font-weight:800;color:var(--mint);letter-spacing:-.02em}
 .mpill .od .u{font-style:normal;font-size:10px;font-weight:700;margin-left:2px;opacity:.75}
-.mpill .sb{font-size:12px;color:var(--muted)}
-.tbar{height:3px;width:34px;border-radius:2px;background:var(--bg3);margin-top:3px}
+.mpill .sb{font-size:11px;color:var(--muted)}
+.mpill.lockout{opacity:1!important;color:var(--dim)}
 .mpill.sel{background:var(--mint);border-color:var(--mint);animation:popsel .3s cubic-bezier(.2,.9,.3,1.35)}
 .mpill.sel .od,.mpill.sel .ln{color:#fff}.mpill.sel .sb{color:rgba(255,255,255,.8)}
 /* A pick you already locked: outlined, not filled, and no longer tappable */
