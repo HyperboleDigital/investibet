@@ -26,7 +26,8 @@ type EspnEvent = {
 export type Game = { id: string; sport_key: string; league: string; home: string; away: string; commence_time: string; updated_at: string };
 export type LineRow = { game_id: string; market: 'h2h' | 'spreads' | 'totals'; selection: string; point: number | null; price: number; book: string; fetched_at: string };
 export type Final = { id: string; home: string; away: string; homeScore: number; awayScore: number };
-export type Slate = { games: Game[]; lines: LineRow[]; finals: Final[]; canceled: string[] };
+export type LiveScore = { id: string; homeScore: number; awayScore: number };
+export type Slate = { games: Game[]; lines: LineRow[]; finals: Final[]; canceled: string[]; live: LiveScore[] };
 
 /** ESPN event ids live in their own namespace so they never collide with legacy Odds API ids (32 hex chars). */
 export const gameId = (espnId: string) => `espn_${espnId}`;
@@ -42,7 +43,7 @@ export async function fetchSlate(sport: string, day: string): Promise<Slate> {
   const r = await fetch(`https://site.api.espn.com/apis/site/v2/sports/${ESPN_PATH[sport]}/scoreboard?${q}`);
   if (!r.ok) throw new Error(`espn ${r.status} ${sport} ${day}`);
   const events = ((await r.json()) as { events?: EspnEvent[] }).events ?? [];
-  const now = new Date().toISOString(); const out: Slate = { games: [], lines: [], finals: [], canceled: [] };
+  const now = new Date().toISOString(); const out: Slate = { games: [], lines: [], finals: [], canceled: [], live: [] };
   for (const e of events) {
     const c = e.competitions[0]; const home = c.competitors.find(x => x.homeAway === 'home'); const away = c.competitors.find(x => x.homeAway === 'away');
     if (!home || !away) continue;
@@ -56,7 +57,12 @@ export async function fetchSlate(sport: string, day: string): Promise<Slate> {
       const hs = Number(home.score), as = Number(away.score);
       if (Number.isFinite(hs) && Number.isFinite(as)) out.finals.push({ id, home: home.team.displayName, away: away.team.displayName, homeScore: hs, awayScore: as });
     }
-    const o = c.odds?.[0]; if (!o || st.state !== 'pre') continue; // lines only matter before kickoff
+    else if (st.state === 'in') {
+      const hs = Number(home.score), as = Number(away.score);
+      if (Number.isFinite(hs) && Number.isFinite(as)) out.live.push({ id, homeScore: hs, awayScore: as });
+    }
+    // Lines only before kickoff: ESPN's in-play "odds" are closing numbers, never live prices.
+    const o = c.odds?.[0]; if (!o || st.state !== 'pre') continue;
     const book = (o.provider?.name ?? 'espn').toLowerCase(); const add = (market: LineRow['market'], selection: string, point: number | null, p: number | null) => {
       if (p != null && (market === 'h2h' || point != null)) out.lines.push({ game_id: id, market, selection, point, price: p, book, fetched_at: now });
     };

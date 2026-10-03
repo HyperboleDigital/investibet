@@ -57,7 +57,20 @@ header{display:flex;align-items:center;justify-content:space-between;padding:18p
 .kick .more-lines{margin-left:auto;display:inline-flex;align-items:center;gap:2px;font-weight:600;color:var(--dim)}
 .lg-head{display:flex;align-items:center;gap:8px;margin:20px 0 4px}
 .lg-head h3{font-size:17px;letter-spacing:-.02em}
-.lg-head .more{margin-left:auto;background:var(--bg3);border-radius:999px;padding:0 14px;min-height:40px;font-size:13px;font-weight:600;color:var(--muted)}
+.lg-head .more{margin-left:auto;display:inline-flex;align-items:center;gap:4px;background:var(--bg3);border-radius:999px;padding:0 14px;min-height:40px;font-size:13px;font-weight:600;color:var(--muted)}
+/* Live: gold pulsing tag on cards, headers and slips */
+.livetag{display:inline-flex;align-items:center;gap:5px;color:var(--gold);font-weight:800;font-size:12px;letter-spacing:.03em}
+.livetag .ld{width:7px;height:7px;border-radius:50%;background:var(--gold);animation:pulse 1.6s ease-out infinite}
+/* Game page market sections: Hard Rock's collapsible blocks with the Stack badge */
+.msec{border-top:1px solid var(--line);margin-top:6px}
+.msec-h{width:100%;display:flex;align-items:center;gap:10px;min-height:54px;text-align:left}
+.msec-h .t{font-size:17px;font-weight:800;letter-spacing:-.02em;flex:1}
+.stackb{background:var(--peri2);color:var(--peri);border-radius:999px;padding:3px 10px;font-size:11px;font-weight:800;letter-spacing:.04em}
+.chev{color:var(--dim);transition:transform .2s;display:inline-flex}
+.chev.open{transform:rotate(90deg)}
+.tcol{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:2px 0 16px}
+.tcol .th{font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--dim);text-align:center}
+.mpill.wide{min-height:50px;flex-direction:row;gap:8px}
 /* Game page: back arrow, centered matchup, markets */
 .back{display:inline-flex;align-items:center;justify-content:center;width:44px;height:44px;border-radius:50%;color:var(--ink)}
 .gp-title{display:flex;align-items:baseline;justify-content:center;gap:10px;font-size:26px;font-weight:800;letter-spacing:-.03em;text-align:center;margin-top:2px}
