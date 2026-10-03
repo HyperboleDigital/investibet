@@ -378,8 +378,7 @@ function Home({ d, uid, cart, onToggle, onCup, onStock, openId, setOpenId }: { d
           return <button key={mk} className={'mpill ' + (inCart ? 'sel' : has ? 'locked' : lockedOut ? 'lockout' : '')} disabled={!l || lockedOut || !!has || !!opp} aria-label={label} aria-pressed={inCart} onClick={e => { e.stopPropagation(); if (l) onToggle(g, l); }}>
             {!l ? <span className="sb">—</span> : lockedOut && !has ? <Symbol name="lock" size={20} /> : <>
               {mk !== 'h2h' && <span className="ln">{mk === 'totals' ? `${i === 0 ? 'O' : 'U'} ${l.point}` : pt(l.point)}</span>}
-              <span className="od">{basePoints(l.price)}<i className="u">pts</i></span>
-              <span className="sb">{oddsTxt(l.price)} · {Math.round(implied(l.price) * 100)}%</span>
+              <span className="pr">{oddsTxt(l.price)}</span>
             </>}
           </button>;
         })}
@@ -419,8 +418,7 @@ function Home({ d, uid, cart, onToggle, onCup, onStock, openId, setOpenId }: { d
       const label = l ? `${mk === 'totals' ? sel : sel} ${mk === 'h2h' ? '' : pt(l.point)}, ${basePoints(l.price)} points, ${spoken(l.price)}` : 'no line';
       return <button className={'mpill wide ' + (inCart ? 'sel' : has ? 'locked' : '')} disabled={!l || !lockableLine(g, l, now) || !!has || !!opp} aria-label={label} aria-pressed={inCart} onClick={() => l && onToggle(g, l)}>
         {l ? <>{mk !== 'h2h' && <span className="ln">{mk === 'totals' ? `${i === 0 ? 'O' : 'U'} ${l.point}` : pt(l.point)}</span>}
-          <span className="od">{basePoints(l.price)}<i className="u">pts</i></span>
-          <span className="sb">{oddsTxt(l.price)}</span></> : <span className="sb">—</span>}
+          <span className="pr">{oddsTxt(l.price)}</span></> : <span className="sb">—</span>}
       </button>;
     };
     const sec = (key: string, title: string, heads: [string, string], body: JSX.Element) => <div className="msec">

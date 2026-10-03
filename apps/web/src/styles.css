@@ -176,15 +176,15 @@ header{display:flex;align-items:center;justify-content:space-between;padding:18p
 .divider:after{content:"";flex:1;border-top:1px solid var(--line)}
 .divider .dot{width:8px;height:8px;border-radius:50%;background:var(--gold);animation:pulse 1.6s ease-out infinite}
 @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(192,138,20,.5)}100%{box-shadow:0 0 0 8px rgba(192,138,20,0)}}
-.mpill{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;min-height:78px;border-radius:14px;background:var(--bg3);border:1px solid transparent;padding:8px 4px;transition:transform .12s,background .12s,border-color .12s}
+/* The pill is two numbers, Hard Rock's way: the line in ink, the price in bold accent */
+.mpill{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;min-height:78px;border-radius:14px;background:var(--bg3);border:1px solid transparent;padding:8px 4px;transition:transform .12s,background .12s,border-color .12s}
 .mpill:active{transform:scale(.96)}
-.mpill .ln{font-size:16px;font-weight:600;letter-spacing:-.01em}
-.mpill .od{font-size:18px;font-weight:800;color:var(--mint);letter-spacing:-.02em}
-.mpill .od .u{font-style:normal;font-size:10px;font-weight:700;margin-left:2px;opacity:.75}
-.mpill .sb{font-size:11px;color:var(--muted)}
+.mpill .ln{font-size:17px;font-weight:600;letter-spacing:-.01em}
+.mpill .pr{font-size:17px;font-weight:800;color:var(--peri);letter-spacing:-.01em}
+.mpill .sb{font-size:12px;color:var(--muted)}
 .mpill.lockout{opacity:1!important;color:var(--dim)}
 .mpill.sel{background:var(--mint);border-color:var(--mint);animation:popsel .3s cubic-bezier(.2,.9,.3,1.35)}
-.mpill.sel .od,.mpill.sel .ln{color:#fff}.mpill.sel .sb{color:rgba(255,255,255,.8)}
+.mpill.sel .ln,.mpill.sel .pr{color:#fff}.mpill.sel .sb{color:rgba(255,255,255,.8)}
 /* A pick you already locked: outlined, not filled, and no longer tappable */
 .mpill.locked{border-color:rgba(15,163,110,.5);opacity:1!important}
 .mpill[disabled]{opacity:.45}
