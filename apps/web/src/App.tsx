@@ -5,7 +5,7 @@ import Symbol from './Symbol';
 import { implied, basePoints, potSplit, project, marketOpen, stackOdds, stackPoints, bookValue, counterfactualDelta } from '@investibet/core';
 
 /* ---------- types ---------- */
-type Game = { id: string; sport_key: string; league: string; home: string; away: string; commence_time: string; completed: boolean; home_score: number | null; away_score: number | null };
+type Game = { id: string; sport_key: string; league: string; home: string; away: string; commence_time: string; completed: boolean; home_score: number | null; away_score: number | null; period?: number | null; clock?: string | null };
 type Line = { game_id: string; market: string; selection: string; point: number | null; price: number; fetched_at?: string | null };
 type TeamInfo = { abbreviation: string; short_name: string; ui_color: string | null };
 type Pick = { id: string; game_id: string; market: string; selection: string; point: number | null; odds: number; stake: number; ticker: string; locked_at: string; fill_price: number | null; shares: number | null; filled_at: string | null; status: string; points: number; counted: boolean; live?: boolean };
@@ -238,6 +238,8 @@ function Shell({ session }: { session: Session }) {
   const d = useData(session); const [tab, setTab] = useState<Tab>('home');
   const [cart, setCart] = useState<Leg[]>([]); const [slipOpen, setSlipOpen] = useState(false); const [brokerOpen, setBrokerOpen] = useState(false);
   const [stockOpen, setStockOpen] = useState<string | null>(null);
+  const [openId, setOpenId] = useState<string | null>(null);
+  const goGame = (gid: string) => { setStockOpen(null); setOpenId(gid); setTab('home'); scrollTo(0, 0); };
   const [stake, setStake] = useState(() => Number(localStorage.getItem('ib_stake')) || 20);
   const [toast, setToast] = useState(''); const say = (m: string) => { setToast(m); setTimeout(() => setToast(''), 1800); };
   const gm = useMemo(() => Object.fromEntries(d.games.map(g => [g.id, g])), [d.games]);
@@ -260,8 +262,8 @@ function Shell({ session }: { session: Session }) {
   return <>
     {stockOpen ? <StockPage ticker={stockOpen} d={d} gm={gm} onClose={() => setStockOpen(null)} /> : <>
       {tab === 'home' && <header><div className="brand">Investi<span>bet</span></div></header>}
-      {tab === 'home' && <Home d={d} uid={session.user.id} cart={cart} onToggle={toggleLeg} onCup={() => setTab('profile')} onStock={setStockOpen} />}
-      {tab === 'picks' && <Picks d={d} gm={gm} say={say} />}
+      {tab === 'home' && <Home d={d} uid={session.user.id} cart={cart} onToggle={toggleLeg} onCup={() => setTab('profile')} onStock={setStockOpen} openId={openId} setOpenId={setOpenId} />}
+      {tab === 'picks' && <Picks d={d} gm={gm} say={say} onEvent={goGame} />}
       {tab === 'owned' && <Owned d={d} gm={gm} onStock={setStockOpen} />}
       {tab === 'profile' && <ProfileTab d={d} gm={gm} uid={session.user.id} say={say} onBroker={() => setBrokerOpen(true)} />}
     </>}
@@ -320,10 +322,9 @@ const lockableLine = (g: Game, l: Line, now: number) => {
 };
 
 /* ---------- home: chrome, hero, promo, league-grouped board ---------- */
-function Home({ d, uid, cart, onToggle, onCup, onStock }: { d: ReturnType<typeof useData>; uid: string; cart: Leg[]; onToggle: (g: Game, l: Line) => void; onCup: () => void; onStock: (t: string) => void }) {
+function Home({ d, uid, cart, onToggle, onCup, onStock, openId, setOpenId }: { d: ReturnType<typeof useData>; uid: string; cart: Leg[]; onToggle: (g: Game, l: Line) => void; onCup: () => void; onStock: (t: string) => void; openId: string | null; setOpenId: (id: string | null) => void }) {
   const [league, setLeague] = useState('All'); const [filter, setFilter] = useState<'trending' | 'live'>('trending'); const [q, setQ] = useState('');
   const [propsFor, setPropsFor] = useState<string | null>(null); const [propLines, setPropLines] = useState<Line[]>([]);
-  const [openId, setOpenId] = useState<string | null>(null);
   const [openLg, setOpenLg] = useState<string | null>(null);
   const [secOpen, setSecOpen] = useState<Record<string, boolean>>({});
   const gm = useMemo(() => Object.fromEntries(d.games.map(g => [g.id, g])), [d.games]);
@@ -623,7 +624,30 @@ function ScoreStrip({ g, teams }: { g: Game; teams: Record<string, TeamInfo> }) 
 }
 const WonBand = () => <div className="wonband" aria-hidden="true"><span className="wm">{'INVESTIBET · WON · '.repeat(10)}</span><span className="tag">WON</span></div>;
 
-function Picks({ d, gm, say }: { d: ReturnType<typeof useData>; gm: Record<string, Game>; say: (m: string) => void }) {
+/* Hard Rock's in-card score strip: abbr + score chips, live period and clock in the middle */
+const periodLabel = (g: Game) => {
+  if (!g.period) return 'LIVE';
+  const u = g.league === 'MLB' ? 'Inning ' : g.league === 'NHL' ? 'Period ' : 'Q';
+  return `${u}${g.period}${g.clock ? ` · ${g.clock}` : ''}`;
+};
+function ScoreBand({ g, teams, state, onEvent }: { g: Game; teams: Record<string, TeamInfo>; state: 'live' | 'final'; onEvent?: () => void }) {
+  const ab = (n: string) => (teams[n] ?? fallbackTeam(n)).abbreviation;
+  return <div className="scorestrip">
+    <div className="ss-top">
+      <span className="ss-side">{ab(g.away)}<span className="ss-num">{g.away_score ?? 0}</span></span>
+      {state === 'live' ? <span className="livetag"><i className="ld" />{periodLabel(g)}</span> : <span className="ss-fin">Final</span>}
+      <span className="ss-side"><span className="ss-num">{g.home_score ?? 0}</span>{ab(g.home)}</span>
+    </div>
+    {onEvent && <button className="ss-go" onClick={e => { e.stopPropagation(); onEvent(); }}><Symbol name="lines" size={14} />Go to game<Symbol name="chevron" size={12} /></button>}
+  </div>;
+}
+const sharePick = async (p: Pick, g: Game, say: (m: string) => void) => {
+  const txt = `${legLabel(p)} ${oddsTxt(p.odds)} · ${g.away} @ ${g.home}. ${fmt0(Number(p.stake))} of ${p.ticker} rides on it. Win: ${earnsTxt(p)}. Miss: the ${p.ticker} is still mine.`;
+  try { if (navigator.share) { await navigator.share({ text: txt }); return; } } catch { return; }
+  try { await navigator.clipboard.writeText(txt); say('Copied, ready to paste'); } catch { say('Could not copy'); }
+};
+
+function Picks({ d, gm, say, onEvent }: { d: ReturnType<typeof useData>; gm: Record<string, Game>; say: (m: string) => void; onEvent: (gid: string) => void }) {
   const [tab, setTab] = useState<'all' | 'upcoming' | 'live' | 'finished' | 'won'>('all');
   const [selId, setSelId] = useState<string | null>(null);
   const all = d.picks.filter(p => gm[p.game_id]);
@@ -645,27 +669,33 @@ function Picks({ d, gm, say }: { d: ReturnType<typeof useData>; gm: Record<strin
   const sel = selId ? all.find(p => p.id === selId) ?? null : null;
   return <section className="view"><h2 style={{ fontSize: 22 }}>Picks</h2>
     <div className="tabs">{([['all', 'All'], ['upcoming', 'Upcoming'], ['live', 'Live'], ['finished', 'Finished'], ['won', 'Won']] as const).map(([k, l]) =>
-      <button key={k} className={tab === k ? 'on' : ''} onClick={() => setTab(k)}>{l}</button>)}</div>
+      <button key={k} className={tab === k ? 'on' : ''} onClick={() => setTab(k)}>{l}{k === 'live' && lists.live.length > 0 && <span className="tbadge">{lists.live.length}</span>}</button>)}</div>
     {!list.length ? <div className="empty"><Symbol name="ticket" size={56} /><p>{EMPTY[tab]}</p></div>
       : list.map(p => { const g = gm[p.game_id]; const won = p.status === 'won'; const live = isLive(p, g); const { day, time } = kickoffLabel(new Date(g.commence_time));
         const val = p.shares && d.prices[p.ticker] ? Number(p.shares) * d.prices[p.ticker] : null;
-        return <button key={p.id} className={'pick ' + (won ? 'won' : p.status === 'lost' ? 'lost' : '')} onClick={() => setSelId(p.id)}>
+        return <div key={p.id} role="button" tabIndex={0} className={'pick tap ' + (won ? 'won' : p.status === 'lost' ? 'lost' : '')} onClick={() => setSelId(p.id)}>
           {won && <WonBand />}
           <div className="row"><div><div className="side">{legLabel(p)} <span className="odds-acc">{oddsTxt(p.odds)}</span></div>
             <div className="eyebrow">{MARKET_LABEL[p.market] ?? p.market} · to hit{p.live ? ' · locked live' : ''}</div>
             <div className="meta">{g.away} @ {g.home}</div></div>
             {!won && statusChip(p, live)}</div>
-          {!won && <div className="kick"><Symbol name="calendar" size={13} />{g.completed ? `Final · ${g.away_score}-${g.home_score}` : live ? <b>In play</b> : `${day}, ${time}`}</div>}
           <div className="se"><div><div className="l">Stake</div><div className="v">{fmt0(Number(p.stake))}</div></div><div><div className="l">Earns</div><div className="v">{earnsTxt(p)}</div></div></div>
-          {won && g.completed && <ScoreStrip g={g} teams={d.teams} />}
+          {live ? <ScoreBand g={g} teams={d.teams} state="live" onEvent={() => onEvent(g.id)} />
+            : won && g.completed ? <ScoreStrip g={g} teams={d.teams} />
+            : g.completed ? <ScoreBand g={g} teams={d.teams} state="final" />
+            : <div className="kick"><Symbol name="calendar" size={13} />{`${day}, ${time}`}</div>}
           <div className={'meta ' + (p.filled_at ? 'mint' : '')} style={{ marginTop: 12 }}>{p.filled_at ? `Bought ${Number(p.shares).toFixed(4)} ${p.ticker} at ${fmt(Number(p.fill_price))}${val != null ? ` · now ${fmt(val)}` : ''}` : `${fmt0(Number(p.stake))} of ${p.ticker} · buys at next market open`}</div>
-        </button>; })}
-    <PickSheet p={sel} g={sel ? gm[sel.game_id] : null} d={d} say={say} onClose={() => setSelId(null)} />
+          <div className="pid-row">
+            <span className="pid">ID {p.id.slice(0, 8)}<button aria-label="Copy pick ID" style={{ minHeight: 24, color: 'inherit' }} onClick={e => { e.stopPropagation(); navigator.clipboard?.writeText(p.id); say('Copied'); }}><Symbol name="copy" size={13} /></button></span>
+            <button className="sharelink" onClick={e => { e.stopPropagation(); sharePick(p, g, say); }}><Symbol name="share" size={14} />Share</button>
+          </div>
+        </div>; })}
+    <PickSheet p={sel} g={sel ? gm[sel.game_id] : null} d={d} say={say} onClose={() => setSelId(null)} onEvent={gid => { setSelId(null); onEvent(gid); }} />
   </section>;
 }
 
 /* ---------- pick detail sheet ---------- */
-function PickSheet({ p, g, d, say, onClose }: { p: Pick | null; g: Game | null; d: ReturnType<typeof useData>; say: (m: string) => void; onClose: () => void }) {
+function PickSheet({ p, g, d, say, onClose, onEvent }: { p: Pick | null; g: Game | null; d: ReturnType<typeof useData>; say: (m: string) => void; onClose: () => void; onEvent: (gid: string) => void }) {
   const [arm, setArm] = useState(false);
   useEffect(() => { setArm(false); }, [p?.id]);
   if (!p || !g) return <><div className="scrim" /><div className="sheet" /></>;
@@ -695,7 +725,7 @@ function PickSheet({ p, g, d, say, onClose }: { p: Pick | null; g: Game | null; 
       <div className="meta" style={{ marginTop: 6 }}>{g.away} @ {g.home}</div>
       <div className="kick"><Symbol name="calendar" size={13} />{g.completed ? 'Final' : live ? <b>In play</b> : `${day}, ${time}`}<span>· {g.league}</span></div>
       <div className="se"><div><div className="l">Stake</div><div className="v">{fmt0(Number(p.stake))}</div></div><div><div className="l">Earns</div><div className="v">{earnsTxt(p)}</div></div></div>
-      {g.completed && <ScoreStrip g={g} teams={d.teams} />}
+      {live ? <ScoreBand g={g} teams={d.teams} state="live" onEvent={() => onEvent(g.id)} /> : g.completed ? <ScoreBand g={g} teams={d.teams} state="final" /> : null}
     </>}
     {won && Number(p.points) > basePoints(p.odds) && <div className="small" style={{ marginTop: 8 }}>{basePoints(p.odds)} base with the streak multiplier applied</div>}
     <div className="card" style={{ margin: '14px 0 10px' }}>
@@ -704,7 +734,8 @@ function PickSheet({ p, g, d, say, onClose }: { p: Pick | null; g: Game | null; 
       {val != null && <div className="meta mint" style={{ marginTop: 4 }}>Now worth {fmt(val)}</div>}
       <div className="small" style={{ marginTop: 8 }}>Yours win or miss. The stake never goes to a book.</div>
     </div>
-    <div className="pid">Pick ID {p.id.slice(0, 8)}<button style={{ minHeight: 24, color: 'var(--dim)' }} aria-label="Copy pick ID" onClick={() => { navigator.clipboard?.writeText(p.id); say('Copied'); }}><Symbol name="copy" size={13} /></button></div>
+    <div className="pid-row"><span className="pid">Pick ID {p.id.slice(0, 8)}<button style={{ minHeight: 24, color: 'var(--dim)' }} aria-label="Copy pick ID" onClick={() => { navigator.clipboard?.writeText(p.id); say('Copied'); }}><Symbol name="copy" size={13} /></button></span>
+      <button className="sharelink" onClick={() => sharePick(p, g, say)}><Symbol name="share" size={14} />Share</button></div>
     {p.status === 'pending' && !live && <button className="btn danger" style={{ marginTop: 12 }} onClick={cancel}>{arm ? 'Tap again to cancel' : 'Cancel pick'}</button>}
     <button className="btn ghost" style={{ marginTop: 8 }} onClick={onClose}>Done</button>
   </div></>;

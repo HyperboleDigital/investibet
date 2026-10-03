@@ -19,14 +19,14 @@ type Side = { close?: { line?: string; odds?: string } };
 type EspnOdds = { provider?: { name?: string }; moneyline?: { home?: Side; away?: Side }; pointSpread?: { home?: Side; away?: Side }; total?: { over?: Side; under?: Side } };
 type EspnEvent = {
   id: string; date: string;
-  competitions: { status: { type: { name: string; state: 'pre' | 'in' | 'post'; completed: boolean } };
+  competitions: { status: { type: { name: string; state: 'pre' | 'in' | 'post'; completed: boolean }; period?: number; displayClock?: string };
     competitors: { homeAway: 'home' | 'away'; score?: string; team: { displayName: string } }[]; odds?: EspnOdds[] }[];
 };
 
 export type Game = { id: string; sport_key: string; league: string; home: string; away: string; commence_time: string; updated_at: string };
 export type LineRow = { game_id: string; market: 'h2h' | 'spreads' | 'totals'; selection: string; point: number | null; price: number; book: string; fetched_at: string };
 export type Final = { id: string; home: string; away: string; homeScore: number; awayScore: number };
-export type LiveScore = { id: string; homeScore: number; awayScore: number };
+export type LiveScore = { id: string; homeScore: number; awayScore: number; period: number | null; clock: string | null };
 export type Slate = { games: Game[]; lines: LineRow[]; finals: Final[]; canceled: string[]; live: LiveScore[] };
 
 /** ESPN event ids live in their own namespace so they never collide with legacy Odds API ids (32 hex chars). */
@@ -59,7 +59,7 @@ export async function fetchSlate(sport: string, day: string): Promise<Slate> {
     }
     else if (st.state === 'in') {
       const hs = Number(home.score), as = Number(away.score);
-      if (Number.isFinite(hs) && Number.isFinite(as)) out.live.push({ id, homeScore: hs, awayScore: as });
+      if (Number.isFinite(hs) && Number.isFinite(as)) out.live.push({ id, homeScore: hs, awayScore: as, period: c.status.period ?? null, clock: c.status.displayClock ?? null });
     }
     // Lines only before kickoff: ESPN's in-play "odds" are closing numbers, never live prices.
     const o = c.odds?.[0]; if (!o || st.state !== 'pre') continue;

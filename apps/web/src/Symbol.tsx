@@ -27,6 +27,7 @@ const GLYPHS: Record<string, ReactElement> = {
   eyeslash: <><path d="M2.5 12S6 5.5 12 5.5a9.7 9.7 0 0 1 4.5 1.2M21.5 12S18 18.5 12 18.5a9.7 9.7 0 0 1-4.5-1.2M4 20L20 4" /></>,
   downtri: <path d="M12 17l-6-8h12z" fill="currentColor" stroke="none" />,
   chevron: P('M9 5l7 7-7 7'),
+  share: <><path d="M12 14.5V3M8 6.8L12 2.8l4 4" /><path d="M5.5 11v8A1.5 1.5 0 0 0 7 20.5h10a1.5 1.5 0 0 0 1.5-1.5v-8" /></>,
   copy: <><rect x="9" y="9" width="11" height="11" rx="2" /><path d="M5 15V5a2 2 0 0 1 2-2h8" /></>,
   picks: P('M4 6h16v12H4zM8 10h8M8 14h5'),
   home: P('M3 12l9-8 9 8M5 10v10h14V10'),
