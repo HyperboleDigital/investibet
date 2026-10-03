@@ -31,10 +31,12 @@ const initialsOf = (name: string) => name.trim().split(/\s+/).map(w => w[0]).sli
 
 /* ---------- rolling number: live values roll on change, still numbers under reduced motion ---------- */
 function Roll({ value, format = (n: number) => String(Math.round(n)) }: { value: number; format?: (n: number) => string }) {
-  const [disp, setDisp] = useState(value); const prev = useRef(value);
+  const [disp, setDisp] = useState(value); const prev = useRef(value); const first = useRef(true);
   useEffect(() => {
     const from = prev.current, to = value; prev.current = value;
     if (from === to) return;
+    // The first change after mount is just data arriving (reload, tab switch): snap, don't roll
+    if (first.current) { first.current = false; setDisp(to); return; }
     if (matchMedia('(prefers-reduced-motion: reduce)').matches) { setDisp(to); return; }
     const t0 = performance.now(), dur = 600; let raf = 0;
     const tick = (t: number) => { const k = Math.min(1, (t - t0) / dur); const e = 1 - Math.pow(1 - k, 3); setDisp(from + (to - from) * e); if (k < 1) raf = requestAnimationFrame(tick); };
@@ -233,8 +235,8 @@ function Gate() {
 }
 
 /* ---------- shell: 5-tab floating pill nav, selection cart, slip ---------- */
-type Tab = 'home' | 'picks' | 'cup' | 'owned' | 'profile';
-const TABS: [Tab, string, string][] = [['home', 'Home', 'home'], ['picks', 'Picks', 'ticket'], ['cup', 'The Cup', 'trophy'], ['owned', 'Owned', 'chart']];
+type Tab = 'home' | 'picks' | 'owned' | 'profile';
+const TABS: [Tab, string, string][] = [['home', 'Home', 'home'], ['picks', 'Picks', 'ticket'], ['owned', 'Owned', 'chart']];
 
 function Shell({ session }: { session: Session }) {
   const d = useData(session); const [tab, setTab] = useState<Tab>('home');
@@ -262,11 +264,10 @@ function Shell({ session }: { session: Session }) {
   return <>
     {stockOpen ? <StockPage ticker={stockOpen} d={d} gm={gm} onClose={() => setStockOpen(null)} /> : <>
       {tab === 'home' && <header><div className="brand">Investi<span>bet</span></div></header>}
-      {tab === 'home' && <Home d={d} uid={session.user.id} cart={cart} onToggle={toggleLeg} onCup={() => setTab('cup')} onStock={setStockOpen} />}
+      {tab === 'home' && <Home d={d} uid={session.user.id} cart={cart} onToggle={toggleLeg} onCup={() => setTab('profile')} onStock={setStockOpen} />}
       {tab === 'picks' && <Picks d={d} gm={gm} say={say} />}
-      {tab === 'cup' && <Cup d={d} uid={session.user.id} />}
       {tab === 'owned' && <Owned d={d} gm={gm} onStock={setStockOpen} />}
-      {tab === 'profile' && <ProfileTab d={d} gm={gm} say={say} onBroker={() => setBrokerOpen(true)} />}
+      {tab === 'profile' && <ProfileTab d={d} gm={gm} uid={session.user.id} say={say} onBroker={() => setBrokerOpen(true)} />}
     </>}
     {cart.length > 0 && !slipOpen && <button className="selbar" onClick={() => setSlipOpen(true)}>
       <span className="n" key={cart.length}>{cart.length} {cart.length === 1 ? 'pick' : 'picks'}</span>
@@ -471,19 +472,26 @@ function Home({ d, uid, cart, onToggle, onCup, onStock }: { d: ReturnType<typeof
     </div>
     <div className="chips">{LEAGUES.slice(1).map(l => <button key={l} className={'chip ' + (league === l && !query ? 'on' : '')} aria-pressed={league === l && !query} onClick={() => { setLeague(league === l ? 'All' : l); setQ(''); }}><Symbol name={LEAGUE_ICONS[l]} size={15} />{l}</button>)}</div>
 
-    <div className="hero2">
-      <div className="hx">
+    <div className="tl2">
+      <div className="tlc you">
         <div className="l">You own</div>
         <div className="v"><Roll value={value} format={fmt0} /></div>
-        {kept > 0.005 ? <div className="b">A sportsbook would have kept <b>{fmt(kept)}</b>. You invested it instead.</div>
-          : kept < -0.005 ? <div className="b muted">Betting would be up {fmt(-kept)} for now. Your money bought stock instead.</div>
-          : mine.length ? <div className="b muted">Every stake became stock you own.</div>
-          : <div className="b muted">Back a pick. The stake buys stock you keep either way.</div>}
-        {invested > 0 && <div className="s">{retPct >= 0 ? '+' : ''}{retPct.toFixed(1)}% return so far · worth ~{fmt0(proj5)} in 5 years at 10-yr averages</div>}
         <div className="s">{d.profile?.weekly_cap ? `${fmt0(weekStaked)} of ${fmt0(Number(d.profile.weekly_cap))} staked this week` : `${fmt0(weekStaked)} staked this week`}</div>
+        <div className="fl" aria-label={`Streak ${streak}`}><Flame size={26} streak={streak} /><span className={streak >= 3 ? 'gold' : ''}>{streak}</span></div>
       </div>
-      <div className="flamebox" aria-label={`Streak ${streak}`}><Flame size={32} streak={streak} /><span className={streak >= 3 ? 'gold' : streak > 0 ? '' : 'cold'}>{streak}</span></div>
+      <div className="tlc book">
+        <div className="l">A sportsbook</div>
+        {kept > 0.005 ? <><div className="v">-{fmt(kept)}</div><div className="s">kept, gone forever. You invested it instead.</div></>
+          : kept < -0.005 ? <><div className="v plus">+{fmt(-kept)}</div><div className="s">would be paying you so far. Your money bought stock either way.</div></>
+          : mine.length ? <><div className="v">$0</div><div className="s">nothing settled yet. A miss here stays yours.</div></>
+          : <><div className="v">$0</div><div className="s">keeps every missed stake. Here it buys stock instead.</div></>}
+      </div>
     </div>
+    {invested > 0 && <div className="proj5">
+      <div className="l">In 5 years this could be</div>
+      <div className="v">~<Roll value={proj5} format={fmt0} /></div>
+      <div className="s">at your holdings' 10-yr averages · {retPct >= 0 ? '+' : ''}{retPct.toFixed(1)}% so far · hypothetical, never advice</div>
+    </div>}
 
     <Promo d={d} uid={uid} invested={invested} onCup={onCup} />
 
@@ -706,17 +714,18 @@ function PickSheet({ p, g, d, say, onClose }: { p: Pick | null; g: Game | null; 
   </div></>;
 }
 
-/* ---------- cup ---------- */
-function Cup({ d, uid }: { d: ReturnType<typeof useData>; uid: string }) {
+/* ---------- the cup (lives inside Profile) ---------- */
+function CupSection({ d, uid }: { d: ReturnType<typeof useData>; uid: string }) {
   const rows = d.lb.map(r => ({ id: r.user_id, points: Number(r.points ?? 0) })); const split = potSplit(rows, d.pot);
   const sorted = [...d.lb].sort((a, b) => Number(b.points ?? 0) - Number(a.points ?? 0)); const mine = split[uid] ?? 0;
-  return <section className="view"><h2 style={{ fontSize: 22 }}>The Cup</h2>
+  return <>
+    <div className="lg-head" style={{ marginTop: 18 }}><Symbol name="trophy" size={18} /><h3>The Cup</h3></div>
     <div className="pot"><div className="row"><span className="small">Monthly pot</span><span className="small">{new Date(month() + '-02').toLocaleString(undefined, { month: 'long', year: 'numeric' })}</span></div>
       <div className="big"><Roll value={d.pot} format={fmt0} /></div>
       {rows.some(r => r.id === uid) && <div className="hint" style={{ margin: '6px 0 0' }}>You hold <b className="mint">{(d.pot ? mine / d.pot * 100 : 0).toFixed(1)}%</b> of the pot right now: <b className="mint">{fmt(mine)}</b></div>}
       <div className="small" style={{ marginTop: 8 }}>60% split by points, 40% to the top 10. Points are the odds you hit, stake never matters. Best 15 picks a week count.</div></div>
     {sorted.length ? sorted.map((r, i) => <div key={r.user_id} className={'lrow ' + (r.user_id === uid ? 'me' : '')}><div className="rk">{i + 1}</div><div className="nm">{r.display_name} {r.streak >= 3 && <span className="flame"><Symbol name="flame" size={12} />{r.streak}</span>}</div><div className="pt">{Math.round(Number(r.points ?? 0))}</div><div className="sh">{fmt0(split[r.user_id] ?? 0)}</div></div>) : <p className="hint">Nobody has settled a pick this month yet.</p>}
-  </section>;
+  </>;
 }
 
 /* ---------- stock row and detail sheet (ROI patterns: Discover rows, big-number detail) ---------- */
@@ -890,7 +899,7 @@ function Owned({ d, gm, onStock }: { d: ReturnType<typeof useData>; gm: Record<s
 }
 
 /* ---------- profile ---------- */
-function ProfileTab({ d, gm, say, onBroker }: { d: ReturnType<typeof useData>; gm: Record<string, Game>; say: (m: string) => void; onBroker: () => void }) {
+function ProfileTab({ d, gm, uid, say, onBroker }: { d: ReturnType<typeof useData>; gm: Record<string, Game>; uid: string; say: (m: string) => void; onBroker: () => void }) {
   const [how, setHow] = useState(false);
   const [pw, setPw] = useState(''); const [pwBusy, setPwBusy] = useState(false);
   const savePw = async () => {
@@ -919,6 +928,7 @@ function ProfileTab({ d, gm, say, onBroker }: { d: ReturnType<typeof useData>; g
       {how && <p className="hint" style={{ marginTop: 10 }}>Every stake buys real stock in your own brokerage account. Win and you earn points toward the pot. Miss and the streak resets, but the stock stays yours. Investibet never holds your money and never recommends a stock.</p>}
     </div>
     <div className="card"><div className="row"><div><div style={{ fontWeight: 700 }}>This month</div><div className="small">{wins} won · {losses} missed · streak {d.profile?.streak ?? 0}</div></div><div style={{ fontWeight: 700, fontSize: 22 }}>{monthPts} pts</div></div></div>
+    <CupSection d={d} uid={uid} />
     <div className="card">
       <div style={{ fontWeight: 700 }}>Sign-in password</div>
       <div className="small" style={{ marginTop: 4 }}>Set one once and skip the email code next time. 8 characters or more.</div>

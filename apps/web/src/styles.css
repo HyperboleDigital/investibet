@@ -77,13 +77,22 @@ header{display:flex;align-items:center;justify-content:space-between;padding:18p
 .gp-title .at{color:var(--dim);font-size:18px;font-weight:600}
 .gp-kick{display:flex;align-items:center;justify-content:center;gap:6px;font-size:13px;color:var(--muted);margin:8px 0 12px}.gp-kick b{color:var(--gold)}
 .gp-sec{font-size:17px;font-weight:800;letter-spacing:-.02em;margin:18px 0 2px}
-/* Counterfactual hero: the first thing every open shows */
-.hero2{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;background:var(--wash-party),var(--bg2);border:1px solid var(--line);border-radius:12px;padding:16px;margin:12px 0 10px}
-.hero2 .l{font-size:13px;font-weight:600;color:var(--muted)}
-.hero2 .v{font-size:38px;font-weight:800;letter-spacing:-.04em;color:var(--mint);margin:2px 0}
-.hero2 .b{font-size:14px;color:var(--coral)}.hero2 .b b{font-weight:700}
-.hero2 .b.muted{color:var(--muted)}
-.hero2 .s{font-size:12px;color:var(--dim);margin-top:6px}
+/* Counterfactual hero: two cards face off, then the 5-year number is the headline */
+.tl2{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:12px 0 10px}
+.tlc{position:relative;border-radius:14px;padding:14px;border:1px solid var(--line)}
+.tlc .l{font-size:12px;font-weight:700;color:var(--muted)}
+.tlc .v{font-size:27px;font-weight:800;letter-spacing:-.03em;margin-top:4px}
+.tlc .s{font-size:11.5px;color:var(--muted);margin-top:5px;line-height:1.35}
+.tlc.you{background:var(--mint2);border-color:rgba(15,163,110,.3)}
+.tlc.you .v{color:var(--mint)}
+.tlc.book{background:var(--coral2);border-color:rgba(232,80,58,.25)}
+.tlc.book .v{color:var(--coral)}
+.tlc.book .v.plus{color:var(--ink)}
+.tlc .fl{position:absolute;top:8px;right:10px;display:flex;flex-direction:column;align-items:center;font-weight:800;font-size:13px;gap:0}
+.proj5{background:var(--wash-party),var(--bg2);border:1px solid var(--line);border-radius:14px;padding:16px;margin:0 0 10px}
+.proj5 .l{font-size:13px;font-weight:600;color:var(--muted)}
+.proj5 .v{font-size:38px;font-weight:800;letter-spacing:-.04em;margin:2px 0;background:linear-gradient(90deg,var(--peri),var(--mint));-webkit-background-clip:text;background-clip:text;color:transparent}
+.proj5 .s{font-size:12px;color:var(--dim)}
 .flamebox{display:flex;flex-direction:column;align-items:center;gap:2px;color:var(--ink);font-weight:800;font-size:16px;padding:6px 10px;flex:none}
 .flamebox .cold{color:var(--dim)}
 /* The flame is always alive: gradient fill, gentle flicker, glow from streak 3 */
@@ -218,7 +227,7 @@ input[type=range]{width:100%;accent-color:var(--mint);margin:10px 0;height:44px}
 .flame{display:inline-flex;align-items:center;gap:3px;font-size:12px;color:var(--gold);font-weight:700;vertical-align:middle}
 .ladder{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}.ladder div{background:var(--bg3);border-radius:12px;padding:10px;text-align:center}.ladder .l{font-size:12px;color:var(--muted)}.ladder .v{font-weight:700;color:var(--mint)}
 /* Floating pill tab bar: liquid glass capsule. Saturated blur, specular top edge, soft drop. */
-nav{position:fixed;bottom:calc(10px + env(safe-area-inset-bottom,0px));left:12px;right:12px;max-width:496px;margin:0 auto;background:var(--glass);backdrop-filter:blur(24px) saturate(180%);-webkit-backdrop-filter:blur(24px) saturate(180%);border:1px solid var(--glass-edge);border-radius:999px;display:grid;grid-template-columns:repeat(5,1fr);padding:5px;box-shadow:0 10px 32px rgba(23,27,46,.18),inset 0 1px 0 rgba(255,255,255,.9),inset 0 -1px 1px rgba(23,27,46,.04);z-index:10}
+nav{position:fixed;bottom:calc(10px + env(safe-area-inset-bottom,0px));left:12px;right:12px;max-width:496px;margin:0 auto;background:var(--glass);backdrop-filter:blur(24px) saturate(180%);-webkit-backdrop-filter:blur(24px) saturate(180%);border:1px solid var(--glass-edge);border-radius:999px;display:grid;grid-template-columns:repeat(4,1fr);padding:5px;box-shadow:0 10px 32px rgba(23,27,46,.18),inset 0 1px 0 rgba(255,255,255,.9),inset 0 -1px 1px rgba(23,27,46,.04);z-index:10}
 nav button{padding:6px 2px;min-height:52px;border-radius:999px;font-size:11px;font-weight:600;color:var(--muted);display:flex;flex-direction:column;align-items:center;gap:3px;transition:transform .15s}
 nav button:active{transform:scale(.92)}
 nav button.on{background:rgba(255,255,255,.85);color:var(--ink);box-shadow:0 2px 8px rgba(23,27,46,.1)}nav svg{width:22px;height:22px}
