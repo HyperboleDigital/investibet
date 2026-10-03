@@ -102,6 +102,9 @@ header{display:flex;align-items:center;justify-content:space-between;padding:18p
 .proj5 .l{font-size:13px;font-weight:600;color:var(--muted)}
 .proj5 .v{font-size:38px;font-weight:800;letter-spacing:-.04em;margin:2px 0;background:linear-gradient(90deg,var(--peri),var(--mint));-webkit-background-clip:text;background-clip:text;color:transparent}
 .proj5 .s{font-size:12px;color:var(--dim)}
+.hzp{display:flex;gap:3px;background:rgba(23,27,46,.06);border-radius:999px;padding:3px;flex:none}
+.hzp button{min-height:30px;padding:0 11px;border-radius:999px;font-size:12px;font-weight:700;color:var(--muted)}
+.hzp button.on{background:#fff;color:var(--ink);box-shadow:0 1px 3px rgba(23,27,46,.15)}
 .flamebox{display:flex;flex-direction:column;align-items:center;gap:2px;color:var(--ink);font-weight:800;font-size:16px;padding:6px 10px;flex:none}
 .flamebox .cold{color:var(--dim)}
 /* The flame is always alive: gradient fill, gentle flicker, glow from streak 3 */

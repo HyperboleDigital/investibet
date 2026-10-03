@@ -327,6 +327,7 @@ function Home({ d, uid, cart, onToggle, onCup, onStock, openId, setOpenId }: { d
   const [league, setLeague] = useState('All'); const [filter, setFilter] = useState<'trending' | 'live'>('trending'); const [q, setQ] = useState('');
   const [propsFor, setPropsFor] = useState<string | null>(null); const [propLines, setPropLines] = useState<Line[]>([]);
   const [secOpen, setSecOpen] = useState<Record<string, boolean>>({});
+  const [hz, setHz] = useState(5);
   const gm = useMemo(() => Object.fromEntries(d.games.map(g => [g.id, g])), [d.games]);
   const now = Date.now();
   const query = q.trim().toLowerCase();
@@ -350,7 +351,7 @@ function Home({ d, uid, cart, onToggle, onCup, onStock, openId, setOpenId }: { d
   const invested = mine.reduce((s, p) => s + Number(p.stake), 0);
   const kept = invested - book; // what the same picks would have cost at a sportsbook so far
   const retPct = invested ? ((value - invested) / invested) * 100 : 0;
-  const proj5 = mine.reduce((s, p) => { const st = d.stocks.find(x => x.ticker === p.ticker); const cur = p.shares && d.prices[p.ticker] ? Number(p.shares) * d.prices[p.ticker] : Number(p.stake); return s + projectCapped(cur, st?.avg_return_10y ?? 10, 5); }, 0);
+  const projAtH = (y: number) => mine.reduce((s, p) => { const st = d.stocks.find(x => x.ticker === p.ticker); const cur = p.shares && d.prices[p.ticker] ? Number(p.shares) * d.prices[p.ticker] : Number(p.stake); return s + projectCapped(cur, st?.avg_return_10y ?? 10, y); }, 0);
   const weekStaked = mine.filter(p => gm[p.game_id] && sameWeek(gm[p.game_id].commence_time)).reduce((s, p) => s + Number(p.stake), 0);
   const streak = d.profile?.streak ?? 0;
   const stockHits = query ? d.stocks.filter(x => x.ticker.toLowerCase().includes(query) || x.name.toLowerCase().includes(query)).slice(0, 5) : [];
@@ -476,9 +477,10 @@ function Home({ d, uid, cart, onToggle, onCup, onStock, openId, setOpenId }: { d
       </div>
     </div>
     {invested > 0 && <div className="proj5">
-      <div className="l">In 5 years this could be</div>
-      <div className="v">~<Roll value={proj5} format={fmt0} /></div>
-      <div className="s">at your stocks' past averages, growth capped at 20%/yr · {retPct >= 0 ? '+' : ''}{retPct.toFixed(1)}% so far · hypothetical, never advice</div>
+      <div className="row"><div className="l">In {hz} {hz === 1 ? 'year' : 'years'} this could be</div>
+        <div className="hzp">{[1, 5, 15].map(y => <button key={y} className={hz === y ? 'on' : ''} aria-pressed={hz === y} onClick={() => setHz(y)}>{y}y</button>)}</div></div>
+      <div className="v">~<Roll value={projAtH(hz)} format={fmt0} /></div>
+      <div className="s">at your stocks' past averages, growth capped at 20%/yr · hypothetical, never advice</div>
     </div>}
 
     <Promo d={d} uid={uid} invested={invested} onCup={onCup} />
