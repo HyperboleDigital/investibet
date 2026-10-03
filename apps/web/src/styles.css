@@ -12,7 +12,7 @@
   --float:0 8px 24px rgba(23,27,46,.14);
   box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
 }
-html{height:100%;scroll-padding-top:env(safe-area-inset-top,0px)}
+html{height:100%;scroll-padding-top:env(safe-area-inset-top,0px);-webkit-text-size-adjust:100%;text-size-adjust:100%}
 *,*:before,*:after{box-sizing:inherit}
 body{margin:0;height:100%;background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text",system-ui,"Segoe UI",Roboto,sans-serif;font-feature-settings:"tnum" 1;font-variant-numeric:tabular-nums;-webkit-font-smoothing:antialiased;overscroll-behavior:none}
 button{font:inherit;color:inherit;background:none;border:0;cursor:pointer;padding:0;min-height:44px}
@@ -62,7 +62,7 @@ header{display:flex;align-items:center;justify-content:space-between;padding:18p
 .game{margin:0;padding:6px 0 14px;border-bottom:1px solid var(--line)}
 .game:last-child{border-bottom:0}
 .game.tap{cursor:pointer}
-.kick{display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--muted);margin-top:8px}.kick b{color:var(--gold)}
+.kick{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);margin-top:8px}.kick b{color:var(--gold)}
 .kick .more-lines{margin-left:auto;display:inline-flex;align-items:center;gap:2px;font-weight:600;color:var(--dim)}
 .lg-head{display:flex;align-items:center;gap:8px;margin:20px 0 4px}
 .lg-head h3{font-size:17px;letter-spacing:-.02em}
@@ -165,22 +165,22 @@ header{display:flex;align-items:center;justify-content:space-between;padding:18p
 .readout .sub{font-size:12px;color:var(--muted);font-weight:400;margin-top:3px}
 .legend{display:flex;gap:16px;align-items:center;font-size:12px;color:var(--muted);margin-top:8px;flex-wrap:wrap}
 .legend .dt{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:5px}
-.mhead{display:grid;grid-template-columns:minmax(96px,1.1fr) repeat(3,1fr);gap:8px;font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--dim);text-align:center;margin:14px 0 2px}
+.mhead{display:grid;grid-template-columns:minmax(96px,1.1fr) repeat(3,1fr);gap:8px;font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--dim);text-align:center;margin:14px 0 2px}
 .mhead span:first-child{text-align:left}
 .mrow{display:grid;grid-template-columns:minmax(96px,1.1fr) repeat(3,1fr);gap:8px;align-items:stretch;margin:8px 0}
 /* Team row, Hard Rock's: plain name, score chip in its own aligned slot, no logos or discs */
 .tname{display:flex;align-items:center;gap:8px;min-width:0;padding-right:2px}
-.tname .nm2{flex:1;min-width:0;font-size:15px;font-weight:600;letter-spacing:-.01em;line-height:1.25}
-.scorechip{background:var(--bg3);border-radius:7px;padding:3px 8px;font-weight:800;font-size:13px;flex:none}
+.tname .nm2{flex:1;min-width:0;font-size:14px;font-weight:600;letter-spacing:-.01em;line-height:1.25}
+.scorechip{background:var(--bg3);border-radius:6px;padding:2px 7px;font-weight:800;font-size:12px;flex:none}
 .divider{display:flex;align-items:center;gap:8px;margin:18px 0 2px;font-size:12px;font-weight:600;color:var(--dim)}
 .divider:after{content:"";flex:1;border-top:1px solid var(--line)}
 .divider .dot{width:8px;height:8px;border-radius:50%;background:var(--gold);animation:pulse 1.6s ease-out infinite}
 @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(192,138,20,.5)}100%{box-shadow:0 0 0 8px rgba(192,138,20,0)}}
 /* The pill is two numbers, Hard Rock's way: the line in ink, the price in bold accent */
-.mpill{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;min-height:62px;border-radius:12px;background:var(--bg3);border:1px solid transparent;padding:7px 4px;transition:transform .12s,background .12s,border-color .12s}
+.mpill{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;min-height:54px;border-radius:11px;background:var(--bg3);border:1px solid transparent;padding:6px 4px;transition:transform .12s,background .12s,border-color .12s}
 .mpill:active{transform:scale(.96)}
-.mpill .ln{font-size:14.5px;font-weight:600;letter-spacing:-.01em}
-.mpill .pr{font-size:14.5px;font-weight:800;color:var(--peri);letter-spacing:-.01em}
+.mpill .ln{font-size:13px;font-weight:600;letter-spacing:-.01em}
+.mpill .pr{font-size:13px;font-weight:800;color:var(--peri);letter-spacing:-.01em}
 .mpill .sb{font-size:12px;color:var(--muted)}
 .mpill.lockout{opacity:1!important;color:var(--dim)}
 .mpill.sel{background:var(--mint);border-color:var(--mint);animation:popsel .3s cubic-bezier(.2,.9,.3,1.35)}
