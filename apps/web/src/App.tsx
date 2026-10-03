@@ -265,6 +265,10 @@ function Home({ d, uid, cart, onToggle, onCup, onStock }: { d: ReturnType<typeof
   const mine = d.picks.filter(p => gm[p.game_id]);
   const value = ownedValue(mine, d.prices);
   const book = bookValue(mine.map(p => ({ stake: Number(p.stake), odds: p.odds, status: p.status as any })));
+  const invested = mine.reduce((s, p) => s + Number(p.stake), 0);
+  const kept = invested - book; // what the same picks would have cost at a sportsbook so far
+  const retPct = invested ? ((value - invested) / invested) * 100 : 0;
+  const proj5 = mine.reduce((s, p) => { const st = d.stocks.find(x => x.ticker === p.ticker); const cur = p.shares && d.prices[p.ticker] ? Number(p.shares) * d.prices[p.ticker] : Number(p.stake); return s + project(cur, st?.avg_return_10y ?? 10, 5); }, 0);
   const weekStaked = mine.filter(p => gm[p.game_id] && sameWeek(gm[p.game_id].commence_time)).reduce((s, p) => s + Number(p.stake), 0);
   const streak = d.profile?.streak ?? 0;
   const stockHits = query ? d.stocks.filter(x => x.ticker.toLowerCase().includes(query) || x.name.toLowerCase().includes(query)).slice(0, 5) : [];
@@ -347,14 +351,17 @@ function Home({ d, uid, cart, onToggle, onCup, onStock }: { d: ReturnType<typeof
       <div className="hx">
         <div className="l">You own</div>
         <div className="v"><Roll value={value} format={fmt0} /></div>
-        {mine.length ? <div className="b">A sportsbook timeline would be <b>{fmt0(book)}</b></div>
+        {kept > 0.005 ? <div className="b">A sportsbook would have kept <b>{fmt(kept)}</b>. You invested it instead.</div>
+          : kept < -0.005 ? <div className="b muted">Betting would be up {fmt(-kept)} for now. Your money bought stock instead.</div>
+          : mine.length ? <div className="b muted">Every stake became stock you own.</div>
           : <div className="b muted">Back a pick. The stake buys stock you keep either way.</div>}
+        {invested > 0 && <div className="s">{retPct >= 0 ? '+' : ''}{retPct.toFixed(1)}% return so far · worth ~{fmt0(proj5)} in 5 years at 10-yr averages</div>}
         <div className="s">{d.profile?.weekly_cap ? `${fmt0(weekStaked)} of ${fmt0(Number(d.profile.weekly_cap))} staked this week` : `${fmt0(weekStaked)} staked this week`}</div>
       </div>
       <div className={'flamebox ' + (streak >= 3 ? 'hot' : '')} aria-label={`Streak ${streak}`}><Symbol name="flame" size={22} /><span>{streak}</span></div>
     </div>
 
-    <Promo d={d} uid={uid} invested={mine.reduce((s, p) => s + Number(p.stake), 0)} onCup={onCup} />
+    <Promo d={d} uid={uid} invested={invested} onCup={onCup} />
 
     {!upcoming.length && <div className="card"><div style={{ fontWeight: 700 }}>No lines yet</div><p className="hint" style={{ margin: '6px 0 0' }}>Lines refresh every few hours. If this is a fresh install, the engine is still pulling the first slate.</p></div>}
     {query && !list.length && !stockHits.length && <div className="card"><div style={{ fontWeight: 700 }}>Nothing matches "{q.trim()}"</div><p className="hint" style={{ margin: '6px 0 0' }}>Try the team name, city, or a ticker, or clear the search.</p></div>}
@@ -649,7 +656,7 @@ function Owned({ d, gm, onStock }: { d: ReturnType<typeof useData>; gm: Record<s
   const move = holdings.reduce((s, h) => s + (h.value - h.cost), 0);
   const proj = (y: number) => holdings.reduce((s, h) => s + project(h.value, h.stock?.avg_return_10y ?? 10, y), 0) + pending.reduce((s, p) => s + project(Number(p.stake), d.stocks.find(x => x.ticker === p.ticker)?.avg_return_10y ?? 10, y), 0);
 
-  // The two timelines, pick by pick in lock order; the last point is today at market value
+  // Your money vs the sportsbook counterfactual, pick by pick in lock order; the last point is today at market value
   const chrono = [...mine].sort((a, b) => a.locked_at.localeCompare(b.locked_at));
   const ownedPts = [0]; const bookPts = [0]; let oc = 0, bc = 0;
   for (const p of chrono) { oc += Number(p.stake); bc += Number(p.stake) + counterfactualDelta(Number(p.stake), p.odds, p.status as 'won' | 'lost' | 'push' | 'void' | 'pending'); ownedPts.push(oc); bookPts.push(bc); }
@@ -681,10 +688,10 @@ function Owned({ d, gm, onStock }: { d: ReturnType<typeof useData>; gm: Record<s
         <LineChart n={n} active={ai} onActive={setAt} xLabels={['Start', 'Today']} label="Your money over time"
           series={view === 'owned' ? [{ color: 'var(--mint)', vals: ownedPts, area: true }]
             : [{ color: 'var(--mint)', vals: ownedPts }, { color: 'var(--coral)', vals: bookPts, dash: true }]} />
-        <div className="readout">{ptLabel}: you own {fmt0(ownedPts[ai])}{view === 'book' ? <> · a sportsbook would hold {fmt0(bookPts[ai])}</> : null}
-          {view === 'book' && <div className="sub">{diff >= 0 ? `That is ${fmt0(diff)} more than the betting timeline.` : `${fmt0(-diff)} behind the betting timeline for now. The stock is still yours.`}</div>}
+        <div className="readout">{ptLabel}: you own {fmt0(ownedPts[ai])}{view === 'book' ? <> · at a sportsbook you'd have {fmt0(bookPts[ai])}</> : null}
+          {view === 'book' && <div className="sub">{diff >= 0 ? `A sportsbook would have kept ${fmt0(diff)} of this by now. You invested it instead.` : `Betting would be up ${fmt0(-diff)} for now. You own the stock either way.`}</div>}
         </div>
-        {view === 'book' && <div className="legend"><span><i className="dt" style={{ background: 'var(--mint)' }} />You own</span><span><i className="dt" style={{ background: 'var(--coral)' }} />Sportsbook timeline</span></div>}
+        {view === 'book' && <div className="legend"><span><i className="dt" style={{ background: 'var(--mint)' }} />You own</span><span><i className="dt" style={{ background: 'var(--coral)' }} />At a sportsbook</span></div>}
         <div className="disc">Each step is a locked pick; the last point is today's value. The dashed line is what the same stakes would have left at a sportsbook. Tap the chart to walk through it.</div>
       </div>
       {holdings.map(h => <StockRow key={h.ticker} s={h.stock ?? { ticker: h.ticker, name: '', tier: 0, avg_return_10y: 10, max_drawdown: 0 }} onOpen={onStock}
@@ -763,7 +770,7 @@ function Reveals({ d, gm }: { d: ReturnType<typeof useData>; gm: Record<string, 
       : push ? <><p>{label} {oddsTxt(cur.odds)}</p><div className="big gold">Push</div><p>No points, streak intact. You still own {fmt0(Number(cur.stake))} of {cur.ticker}.</p></>
       : won ? <><p>{label} {oddsTxt(cur.odds)}</p><div className="big mint">+{Math.round(cur.points)} pts</div>{(d.profile?.streak ?? 0) >= 3 && <p className="gold" style={{ fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}><Symbol name="flame" size={14} />{d.profile!.streak} straight · {d.profile!.streak >= 5 ? '2x' : '1.5x'} points</p>}<p>And you still own {fmt0(Number(cur.stake))} of {cur.ticker}.</p></>
       : <><p>{label} {oddsTxt(cur.odds)}</p><div className="big" style={{ color: 'var(--muted)' }}>Missed</div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 14, textAlign: 'left' }}><div style={{ background: 'var(--coral2)', borderRadius: 12, padding: 10 }}><div className="small">Sportsbook timeline</div><div className="coral" style={{ fontWeight: 700, fontSize: 20 }}>-{fmt0(Number(cur.stake))}</div></div><div style={{ background: 'var(--mint2)', borderRadius: 12, padding: 10 }}><div className="small">Your timeline</div><div className="mint" style={{ fontWeight: 700, fontSize: 18 }}>own {fmt0(Number(cur.stake))} of {cur.ticker}</div></div></div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 14, textAlign: 'left' }}><div style={{ background: 'var(--coral2)', borderRadius: 12, padding: 10 }}><div className="small">A sportsbook keeps</div><div className="coral" style={{ fontWeight: 700, fontSize: 20 }}>{fmt0(Number(cur.stake))}</div></div><div style={{ background: 'var(--mint2)', borderRadius: 12, padding: 10 }}><div className="small">You still own</div><div className="mint" style={{ fontWeight: 700, fontSize: 18 }}>{fmt0(Number(cur.stake))} of {cur.ticker}</div></div></div>
         <p style={{ marginTop: 12 }}>Streak resets. The money didn't go anywhere.</p></>}
   </div>{phase === 'show' && <><div style={{ height: 16 }} /><button className="btn" style={{ maxWidth: 380 }} onClick={next}>{queue.length > 1 ? 'Next result' : 'Done'}</button></>}</div>;
 }

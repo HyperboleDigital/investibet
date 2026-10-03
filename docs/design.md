@@ -88,8 +88,8 @@ Reject from Roi:
     projection curve at the disclosed 10-yr average, horizon pills 1/5/10/20/25,
     disclaimer always (locked).
   - Watchlist star until stock_favorites ships (overhaul session 4).
-Chart rules (dataviz-validated): one axis, 2px lines, mint = you / coral = the
-sportsbook timeline (entity colors, validated for CVD on white: the coral line is
+Chart rules (dataviz-validated): one axis, 2px lines, mint = you / coral = what
+a sportsbook would have kept (entity colors, validated for CVD on white: the coral line is
 always dashed as secondary encoding), legend for two series, text in ink tokens,
 tap a column to read exact values, baseline at $0, never a dual axis.
 ```
@@ -112,7 +112,7 @@ Money and state colors, strictly semantic (mint is never the action color), dark
 | Token | Value | Only ever means |
 |---|---|---|
 | `--mint` | `#0FA36E` | Ownership, gains, points, won. The accent on every odds pill. |
-| `--coral` | `#E8503A` | The sportsbook timeline; destructive confirms. Never a loss state. |
+| `--coral` | `#E8503A` | What a sportsbook would have kept; destructive confirms. Never a loss state. |
 | `--gold` | `#C08A14` | Streaks and pot. |
 | Tints | `*2` variants | State pill and panel backgrounds, ~10% alpha. |
 
@@ -154,7 +154,7 @@ Radius: cards 12, sheets and modals 16, compact buttons 8, full-width buttons 12
 - **Status pills** (res chips): full pill, tinted background. Won = mint on `--mint2`. Push/Void = gold on `--gold2`. Missed = `--muted` on `rgba(255,255,255,.05)`; never red, the money did not go anywhere.
 - **Market pills** (mpill): unchanged anatomy (line, big mint points, odds and implied % beneath). Selected fills mint: allowed, selection is a money-semantic state, not chrome.
 - **Pot card**: `--wash-party` over `--bg2`. The one permanently celebratory surface.
-- **Win reveal card**: `--wash-party` background, mint border, display number rolls. Miss reveal stays flat gray with the two-timeline panel.
+- **Win reveal card**: `--wash-party` background, mint border, display number rolls. Miss reveal stays flat gray with the sportsbook-keeps vs you-still-own panel.
 - **Share, ticket and milestone cards**: white-surface cards (Partiful's card language survives on export images), scattered at a slight tilt in galleries only.
 - **Nav**: active tab white, inactive muted. No mint in chrome.
 - **Toast**: white pill, dark text, floating shadow.
@@ -174,6 +174,7 @@ Don't: color-fill a primary action; gradient a button, badge, or text; use more 
 5. **Selected chips were white-filled (this file, Sept 30); the Hard Rock adoption (Oct 2) changes them to outlined + tinted.** Segmented controls keep the white fill so the two states stay distinguishable. Revert is one CSS rule if it reads muddy on the phone.
 6. **The pick-flow mockup fills the Lock button mint.** Superseded by resolution 3 above: actions are white, mint means money. The mockup is content spec only.
 7. **Hard Rock's fifth tab is a cash balance.** We never show a cash balance; the slot is the initials avatar opening a balanceless Profile that leads with Owned.
+8a. **"Sportsbook timeline" verbiage retired (Owen, Oct 3).** Copy says what happened instead: "A sportsbook would have kept $X. You invested it instead," alongside the realized % return and a future value. Coral keeps its meaning (the book's cut), the framing just dropped the abstraction.
 8. **Dark theme was locked Sept 28-30; Owen reversed it Oct 2 PM.** The product is light, matching the Hard Rock references and Partiful's native white ground. Primary actions are now ink-filled (dark button, white text, Partiful's original polarity). The section 1 "Reject: white canvas" line is void. Dark may return later as a mode, not the default.
 
 ## 6. Applying it
