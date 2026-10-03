@@ -426,8 +426,14 @@ const earnsTxt = (p: Pick) =>
   p.status === 'won' ? `${Math.round(p.points)} pts` : p.status === 'pending' ? `${basePoints(p.odds)} pts` : '0 pts';
 const isLive = (p: Pick, g: Game) => p.status === 'pending' && !g.completed && new Date(g.commence_time) <= new Date();
 
+function ScoreStrip({ g, teams }: { g: Game; teams: Record<string, TeamInfo> }) {
+  const ab = (n: string) => (teams[n] ?? fallbackTeam(n)).abbreviation;
+  return <div className="score"><span>{ab(g.away)}<span className="num">{g.away_score}</span></span><span className="lbl">Final Score</span><span><span className="num">{g.home_score}</span>{ab(g.home)}</span></div>;
+}
+const WonBand = () => <div className="wonband" aria-hidden="true"><span className="wm">{'INVESTIBET · WON · '.repeat(10)}</span><span className="tag">WON</span></div>;
+
 function Picks({ d, gm, say }: { d: ReturnType<typeof useData>; gm: Record<string, Game>; say: (m: string) => void }) {
-  const [tab, setTab] = useState<'all' | 'upcoming' | 'live' | 'finished'>('all');
+  const [tab, setTab] = useState<'all' | 'upcoming' | 'live' | 'finished' | 'won'>('all');
   const [selId, setSelId] = useState<string | null>(null);
   const all = d.picks.filter(p => gm[p.game_id]);
   const lists: Record<typeof tab, Pick[]> = {
@@ -435,6 +441,7 @@ function Picks({ d, gm, say }: { d: ReturnType<typeof useData>; gm: Record<strin
     upcoming: all.filter(p => p.status === 'pending' && !isLive(p, gm[p.game_id])),
     live: all.filter(p => isLive(p, gm[p.game_id])),
     finished: all.filter(p => p.status !== 'pending'),
+    won: all.filter(p => p.status === 'won'),
   };
   const list = lists[tab];
   const EMPTY: Record<typeof tab, string> = {
@@ -442,22 +449,25 @@ function Picks({ d, gm, say }: { d: ReturnType<typeof useData>; gm: Record<strin
     upcoming: 'Nothing locked for later. The board is full of lines.',
     live: 'No picks in play right now.',
     finished: 'Nothing settled yet. Results land here when games go final.',
+    won: 'No wins yet. The first one turns this screen green.',
   };
   const sel = selId ? all.find(p => p.id === selId) ?? null : null;
   return <section className="view"><h2 style={{ fontSize: 22 }}>Picks</h2>
-    <div className="tabs">{([['all', 'All'], ['upcoming', 'Upcoming'], ['live', 'Live'], ['finished', 'Finished']] as const).map(([k, l]) =>
+    <div className="tabs">{([['all', 'All'], ['upcoming', 'Upcoming'], ['live', 'Live'], ['finished', 'Finished'], ['won', 'Won']] as const).map(([k, l]) =>
       <button key={k} className={tab === k ? 'on' : ''} onClick={() => setTab(k)}>{l}</button>)}</div>
     {!list.length ? <div className="empty"><Symbol name="ticket" size={56} /><p>{EMPTY[tab]}</p></div>
-      : list.map(p => { const g = gm[p.game_id]; const live = isLive(p, g); const { day, time } = kickoffLabel(new Date(g.commence_time));
+      : list.map(p => { const g = gm[p.game_id]; const won = p.status === 'won'; const live = isLive(p, g); const { day, time } = kickoffLabel(new Date(g.commence_time));
         const val = p.shares && d.prices[p.ticker] ? Number(p.shares) * d.prices[p.ticker] : null;
-        return <button key={p.id} className={'pick ' + (p.status === 'won' ? 'won' : p.status === 'lost' ? 'lost' : '')} onClick={() => setSelId(p.id)}>
+        return <button key={p.id} className={'pick ' + (won ? 'won' : p.status === 'lost' ? 'lost' : '')} onClick={() => setSelId(p.id)}>
+          {won && <WonBand />}
           <div className="row"><div><div className="side">{legLabel(p)} <span className="odds-acc">{oddsTxt(p.odds)}</span></div>
             <div className="eyebrow">{MARKET_LABEL[p.market] ?? p.market} · to hit</div>
-            <div className="meta">{gm[p.game_id].away} @ {gm[p.game_id].home}{g.completed ? ` · ${g.away_score}-${g.home_score}` : ''}</div></div>
-            {statusChip(p, live)}</div>
-          <div className="kick"><Symbol name="calendar" size={13} />{g.completed ? 'Final' : live ? <b>In play</b> : `${day}, ${time}`}</div>
+            <div className="meta">{g.away} @ {g.home}</div></div>
+            {!won && statusChip(p, live)}</div>
+          {!won && <div className="kick"><Symbol name="calendar" size={13} />{g.completed ? `Final · ${g.away_score}-${g.home_score}` : live ? <b>In play</b> : `${day}, ${time}`}</div>}
           <div className="se"><div><div className="l">Stake</div><div className="v">{fmt0(Number(p.stake))}</div></div><div><div className="l">Earns</div><div className="v">{earnsTxt(p)}</div></div></div>
-          <div className={'meta ' + (p.filled_at ? 'mint' : '')} style={{ marginTop: 10 }}>{p.filled_at ? `Bought ${Number(p.shares).toFixed(4)} ${p.ticker} at ${fmt(Number(p.fill_price))}${val != null ? ` · now ${fmt(val)}` : ''}` : `${fmt0(Number(p.stake))} of ${p.ticker} · buys at next market open`}</div>
+          {won && g.completed && <ScoreStrip g={g} teams={d.teams} />}
+          <div className={'meta ' + (p.filled_at ? 'mint' : '')} style={{ marginTop: 12 }}>{p.filled_at ? `Bought ${Number(p.shares).toFixed(4)} ${p.ticker} at ${fmt(Number(p.fill_price))}${val != null ? ` · now ${fmt(val)}` : ''}` : `${fmt0(Number(p.stake))} of ${p.ticker} · buys at next market open`}</div>
         </button>; })}
     <PickSheet p={sel} g={sel ? gm[sel.game_id] : null} d={d} say={say} onClose={() => setSelId(null)} />
   </section>;
@@ -478,14 +488,25 @@ function PickSheet({ p, g, d, say, onClose }: { p: Pick | null; g: Game | null; 
     say(error ? error.message.replace(/^.*?: /, '') : 'Pick cancelled');
     if (!error) { d.reload(); onClose(); }
   };
+  const won = p.status === 'won';
   return <><div className="scrim open" onClick={onClose} /><div className="sheet open">
     <div className="grab" />
-    <div className="row"><div><div className="side" style={{ fontSize: 20 }}>{legLabel(p)} <span className="odds-acc">{oddsTxt(p.odds)}</span></div>
-      <div className="eyebrow">{MARKET_LABEL[p.market] ?? p.market} · to hit</div></div>{statusChip(p, live)}</div>
-    <div className="meta" style={{ marginTop: 6 }}>{g.away} @ {g.home}{g.completed ? ` · Final ${g.away_score}-${g.home_score}` : ''}</div>
-    <div className="kick"><Symbol name="calendar" size={13} />{g.completed ? 'Final' : live ? <b>In play</b> : `${day}, ${time}`}<span>· {g.league}</span></div>
-    <div className="se"><div><div className="l">Stake</div><div className="v">{fmt0(Number(p.stake))}</div></div><div><div className="l">Earns</div><div className="v">{earnsTxt(p)}</div></div></div>
-    {p.status === 'won' && Number(p.points) > basePoints(p.odds) && <div className="small" style={{ marginTop: 4 }}>{basePoints(p.odds)} base with the streak multiplier applied</div>}
+    {won ? <div className="pick won" style={{ margin: 0 }}>
+      <WonBand />
+      <div className="row"><div><div className="side" style={{ fontSize: 20 }}>{legLabel(p)} <span className="odds-acc">{oddsTxt(p.odds)}</span></div>
+        <div className="eyebrow">{MARKET_LABEL[p.market] ?? p.market} · to hit</div>
+        <div className="meta">{g.away} @ {g.home}</div></div></div>
+      <div className="se"><div><div className="l">Stake</div><div className="v">{fmt0(Number(p.stake))}</div></div><div><div className="l">Earns</div><div className="v">{earnsTxt(p)}</div></div></div>
+      {g.completed && <ScoreStrip g={g} teams={d.teams} />}
+    </div> : <>
+      <div className="row"><div><div className="side" style={{ fontSize: 20 }}>{legLabel(p)} <span className="odds-acc">{oddsTxt(p.odds)}</span></div>
+        <div className="eyebrow">{MARKET_LABEL[p.market] ?? p.market} · to hit</div></div>{statusChip(p, live)}</div>
+      <div className="meta" style={{ marginTop: 6 }}>{g.away} @ {g.home}</div>
+      <div className="kick"><Symbol name="calendar" size={13} />{g.completed ? 'Final' : live ? <b>In play</b> : `${day}, ${time}`}<span>· {g.league}</span></div>
+      <div className="se"><div><div className="l">Stake</div><div className="v">{fmt0(Number(p.stake))}</div></div><div><div className="l">Earns</div><div className="v">{earnsTxt(p)}</div></div></div>
+      {g.completed && <ScoreStrip g={g} teams={d.teams} />}
+    </>}
+    {won && Number(p.points) > basePoints(p.odds) && <div className="small" style={{ marginTop: 8 }}>{basePoints(p.odds)} base with the streak multiplier applied</div>}
     <div className="card" style={{ margin: '14px 0 10px' }}>
       <div style={{ fontWeight: 700 }}>{p.ticker}{stock ? ` · ${stock.name}` : ''}</div>
       <div className="meta" style={{ marginTop: 6 }}>{p.filled_at ? `Bought ${Number(p.shares).toFixed(4)} shares at ${fmt(Number(p.fill_price))}` : `${fmt0(Number(p.stake))} buys at the next market open`}</div>
