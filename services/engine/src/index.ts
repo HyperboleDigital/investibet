@@ -190,6 +190,26 @@ app.get('/props/:sport/:eventId', async (req, res) => {
   try { res.json(await ingestProps(req.params.sport, req.params.eventId)); } catch (e) { res.status(500).json({ error: (e as Error).message }); }
 });
 
+/** Daily close history from Stooq for the stock pages' charts. Public data, cached 6h, CORS open. */
+const histCache = new Map<string, { at: number; points: [string, number][] }>();
+app.get('/history/:ticker', async (req, res) => {
+  res.set('Access-Control-Allow-Origin', '*');
+  try {
+    const t = req.params.ticker.toUpperCase().replace(/[^A-Z.]/g, '');
+    const hit = histCache.get(t);
+    if (hit && Date.now() - hit.at < 6 * 3600e3) return res.json({ ticker: t, points: hit.points });
+    const { data: known } = await sb.from('stock_lines').select('ticker').eq('ticker', t).maybeSingle();
+    if (!known) return res.status(404).json({ error: 'unknown ticker' });
+    const day = (d: Date) => d.toISOString().slice(0, 10).replace(/-/g, '');
+    const r = await fetch(`https://stooq.com/q/d/l/?s=${t.toLowerCase()}.us&i=d&d1=${day(new Date(Date.now() - 5.3 * 365 * 86400e3))}&d2=${day(new Date())}`);
+    const rows = (await r.text()).trim().split('\n').slice(1);
+    const points = rows.map(l => l.split(',')).filter(c => c.length >= 5 && Number(c[4]) > 0).map(c => [c[0], Number(c[4])] as [string, number]);
+    if (!points.length) return res.status(502).json({ error: 'no data for ticker' });
+    histCache.set(t, { at: Date.now(), points });
+    res.json({ ticker: t, points });
+  } catch (e) { res.status(500).json({ error: (e as Error).message }); }
+});
+
 // ESPN lines: 6 leagues x 8 days = 48 free calls per run. Odds API lines: 3 credits per league per run.
 cron.schedule(LINES_SOURCE === 'espn' ? '20 * * * *' : '0 */6 * * *', ingestOdds);
 cron.schedule('*/5 * * * *', async () => { await ingestScores(); await settle(); }); // only calls ESPN when a game is live

@@ -115,6 +115,8 @@ Money and state colors, strictly semantic (mint is never the action color), dark
 | `--coral` | `#E8503A` | What a sportsbook would have kept; destructive confirms. Never a loss state. |
 | `--gold` | `#C08A14` | Streaks and pot. |
 | Tints | `*2` variants | State pill and panel backgrounds, ~10% alpha. |
+| `--peri` | `#6B7CF5` | The third lane color: Value tier tags, avatar gradient, confetti. Never money semantics. |
+| `--glass` / `--glass-dark` | `rgba(255,255,255,.58)` / `rgba(23,27,46,.82)` | Liquid glass chrome surfaces, always over `blur + saturate` with a specular inset edge. |
 
 Washes (surfaces and overlays only, never interactive elements), retuned up for the light canvas:
 
@@ -142,14 +144,16 @@ Radius: cards 12, sheets and modals 16, compact buttons 8, full-width buttons 12
 - **Primary button**: `--ink` fill, `--bg` text, weight 700, tracking -0.02em, radius 12 (full-width) or 8 (compact). Says exactly what it does ("Lock $20 on Eagles, Bears → NVDA"). One per screen.
 - **Ghost button**: transparent, 1px `--line` border, `--ink` text.
 - **Destructive**: coral tint fill, coral text, two-tap confirm.
-- **Filter chips** (leagues, Trending, Live, stock tiers): pill, inactive is `--bg3` with `--muted` text; selected is outlined (`--ink` border) + tinted (`rgba(255,255,255,.1)`), Hard Rock's pattern in our monochrome. Changed Oct 2 from the white-fill rule.
+- **Filter chips** (leagues, Trending, Live, stock tiers, ranges): pill, inactive is `--bg3` with `--muted` text; selected is mint-tinted with a mint outline and a settle-in pop (Oct 3: Owen asked for color in the chrome, retiring the monochrome-selected rule).
 - **Segmented controls** (Month | Season, Stacks | Singles): the active segment fills white with dark text.
 - **Content tabs** (All | Upcoming | Live | Finished on Picks): underlined active tab, no pill.
-- **Floating pill tab bar**: capsule, `--bg2` at 96% over blur, 1px `--line`, floating shadow (it floats), radius 999. Active tab gets a `rgba(255,255,255,.09)` pill fill with `--ink` icon and label; inactive `--muted`. No mint in chrome. Fifth slot is the initials avatar on the periwinkle gradient, coral dot when something needs attention.
-- **Floating selection bar**: white pill, dark text, floating shadow, rises with a spring. Left "N picks" at weight 800, right "$X stake earns Y pts" with the points rolling. It is a primary action, so it is white (monochrome action rule), never mint.
+- **Floating pill tab bar**: liquid glass capsule (Apple's Liquid Glass read): `--glass` over `blur(24px) saturate(180%)`, `--glass-edge` border, specular inset top highlight plus a soft drop. Active tab sits on a near-white pill with its own small shadow; buttons squish on press. Fifth slot is the initials avatar on the periwinkle gradient, coral dot when something needs attention.
+- **Floating selection bar**: dark liquid glass (`--glass-dark` + blur, inset top light), white type, rises with a spring; the pick count bumps on every change. Toast and the feedback pill share the glass treatment.
 - **Promo card**: `--wash-party` over `--bg2`, dismissible x in a soft circle, one per screen, rotates Cup pot and milestone nudges only.
 - **League header**: sport icon + 17px/700 league name, ghost pill "View more lines" right.
-- **Won pick card** (Hard Rock's winner card, ours): the whole card fills a mint gradient and sweeps in (scale-pop, reduced-motion safe), white type, a watermark band of the repeated wordmark with a WON tag, Stake | Earns columns, the ink Final Score strip (abbr + score pills), then the stock line. Mint as a surface fill is allowed here: won is a money-semantic state, the one place celebration owns the chrome. Missed cards stay neutral, never red.
+- **Won pick card** (Hard Rock's winner card, ours): the whole card fills a mint gradient and sweeps in (scale-pop, reduced-motion safe), white type, a watermark band of the repeated wordmark with a WON tag, Stake | Earns columns, the ink Final Score strip (abbr + score pills), then the stock line. The win reveal card wears the same mint gradient. Mint as a surface fill is allowed here: won is a money-semantic state, where celebration owns the chrome. Missed cards stay neutral, never red.
+- **Motion inventory** (every entry is killed by prefers-reduced-motion): screens fade-up on entry (`viewin`), selected pills and chips pop (`popsel`), the selection-bar count bumps, hot streak flames flicker, won cards sweep in (`winin`), numbers roll (Roll), reveal shimmer then pop, confetti bursts only on streak 3 / 5 and invested milestones. Duolingo energy, Apple physics: springs and scale, never slides from offscreen except sheets.
+- **Stock page** (Roi anatomy): back + tier tag row, disc + ticker + name, big rolling price, triangle change line (mint up, slate down: coral stays the book's cut, a price dip is not a loss state), real daily-close chart from the engine's `/history` (fitted y-domain), range pills 1M/3M/1Y/5Y, scrubbing rolls the price to that day, then the $100 projection curve with 1/5/10/20/25-yr pills, the You-own card, disclaimers, never a Trade button.
 - **Slip trio** (from the pick-flow mockup): Win in `--mint` with the multiplier spelled out, Miss in neutral ("you still own $20 of NVDA"), In 5 yrs in `--gold`; sportsbook-comparison fine print in `--dim` beneath; disclaimer always.
 - **Status pills** (res chips): full pill, tinted background. Won = mint on `--mint2`. Push/Void = gold on `--gold2`. Missed = `--muted` on `rgba(255,255,255,.05)`; never red, the money did not go anywhere.
 - **Market pills** (mpill): unchanged anatomy (line, big mint points, odds and implied % beneath). Selected fills mint: allowed, selection is a money-semantic state, not chrome.

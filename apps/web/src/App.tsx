@@ -44,22 +44,46 @@ function Roll({ value, format = (n: number) => String(Math.round(n)) }: { value:
   return <>{format(disp)}</>;
 }
 
+/* ---------- price history: real daily closes via the engine, cached per ticker ---------- */
+type Hist = [string, number][];
+const histCache = new Map<string, Hist>();
+function useHistory(ticker: string | null) {
+  const [hist, setHist] = useState<Hist | null>(ticker ? histCache.get(ticker) ?? null : null);
+  const [failed, setFailed] = useState(false);
+  useEffect(() => {
+    if (!ticker) return;
+    setFailed(false); setHist(histCache.get(ticker) ?? null);
+    if (histCache.has(ticker)) return;
+    let gone = false;
+    fetch(`${import.meta.env.VITE_ENGINE_URL ?? ''}/history/${ticker}`)
+      .then(r => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
+      .then(j => { if (!gone && Array.isArray(j.points) && j.points.length) { histCache.set(ticker, j.points); setHist(j.points); } else if (!gone) setFailed(true); })
+      .catch(() => { if (!gone) setFailed(true); });
+    return () => { gone = true; };
+  }, [ticker]);
+  return { hist, failed };
+}
+const thin = (a: Hist, max = 110): Hist => a.length <= max ? a : a.filter((_, i) => i % Math.ceil(a.length / max) === 0 || i === a.length - 1);
+
 /* ---------- line chart: inline SVG, one axis, 2px lines, tap a column to read the values ---------- */
-function LineChart({ series, n, active, onActive, xLabels, label }: {
+function LineChart({ series, n, active, onActive, xLabels, label, fit }: {
   series: { color: string; vals: number[]; dash?: boolean; area?: boolean }[]; n: number;
-  active: number; onActive: (i: number) => void; xLabels: [string, string]; label: string;
+  active: number; onActive: (i: number) => void; xLabels: [string, string]; label: string; fit?: boolean;
 }) {
   const W = 340, H = 150, L = 8, R = 8, T = 12, B = 22;
-  const max = Math.max(1, ...series.flatMap(s => s.vals)) * 1.06;
+  const all = series.flatMap(s => s.vals);
+  const max = Math.max(1e-9, ...all) * (fit ? 1.015 : 1.06);
+  const min = fit ? Math.min(...all) * 0.99 : 0;
   const x = (i: number) => L + (n > 1 ? (i * (W - L - R)) / (n - 1) : 0);
-  const y = (v: number) => T + (1 - v / max) * (H - T - B);
+  const y = (v: number) => T + (1 - (v - min) / (max - min)) * (H - T - B);
   const pts = (vals: number[]) => vals.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' ');
   const colW = (W - L - R) / Math.max(1, n - 1);
+  const base = fit ? H - B : y(0);
   return <svg viewBox={`0 0 ${W} ${H}`} width="100%" role="img" aria-label={label} style={{ display: 'block', touchAction: 'pan-y' }}>
     {[0.25, 0.5, 0.75].map(f => <line key={f} x1={L} x2={W - R} y1={T + f * (H - T - B)} y2={T + f * (H - T - B)} stroke="var(--line)" strokeWidth="1" />)}
-    <line x1={L} x2={W - R} y1={y(0)} y2={y(0)} stroke="var(--line)" strokeWidth="1.5" />
+    {!fit && <line x1={L} x2={W - R} y1={base} y2={base} stroke="var(--line)" strokeWidth="1.5" />}
     {series.map((s, si) => <g key={si}>
-      {s.area && <polygon points={`${x(0)},${y(0)} ${pts(s.vals)} ${x(n - 1)},${y(0)}`} fill={s.color} opacity="0.08" />}
+      {s.area && <polygon points={`${x(0)},${base} ${pts(s.vals)} ${x(n - 1)},${base}`} fill={s.color} opacity="0.08" />}
       <polyline points={pts(s.vals)} fill="none" stroke={s.color} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" strokeDasharray={s.dash ? '5 4' : undefined} />
       <circle cx={x(active)} cy={y(s.vals[active])} r="4.5" fill={s.color} stroke="#fff" strokeWidth="2" />
     </g>)}
@@ -191,19 +215,21 @@ function Shell({ session }: { session: Session }) {
   const pts = cart.length ? stackPoints(cart.map(x => x.line.price)) : 0;
 
   return <>
-    {tab === 'home' && <header><div className="brand">Investi<span>bet</span></div></header>}
-    {tab === 'home' && <Home d={d} uid={session.user.id} cart={cart} onToggle={toggleLeg} onCup={() => setTab('cup')} onStock={setStockOpen} />}
-    {tab === 'picks' && <Picks d={d} gm={gm} say={say} />}
-    {tab === 'cup' && <Cup d={d} uid={session.user.id} />}
-    {tab === 'owned' && <Owned d={d} gm={gm} onStock={setStockOpen} />}
-    {tab === 'profile' && <ProfileTab d={d} gm={gm} say={say} onBroker={() => setBrokerOpen(true)} />}
+    {stockOpen ? <StockPage ticker={stockOpen} d={d} gm={gm} onClose={() => setStockOpen(null)} /> : <>
+      {tab === 'home' && <header><div className="brand">Investi<span>bet</span></div></header>}
+      {tab === 'home' && <Home d={d} uid={session.user.id} cart={cart} onToggle={toggleLeg} onCup={() => setTab('cup')} onStock={setStockOpen} />}
+      {tab === 'picks' && <Picks d={d} gm={gm} say={say} />}
+      {tab === 'cup' && <Cup d={d} uid={session.user.id} />}
+      {tab === 'owned' && <Owned d={d} gm={gm} onStock={setStockOpen} />}
+      {tab === 'profile' && <ProfileTab d={d} gm={gm} say={say} onBroker={() => setBrokerOpen(true)} />}
+    </>}
     {cart.length > 0 && !slipOpen && <button className="selbar" onClick={() => setSlipOpen(true)}>
-      <span className="n">{cart.length} {cart.length === 1 ? 'pick' : 'picks'}</span>
+      <span className="n" key={cart.length}>{cart.length} {cart.length === 1 ? 'pick' : 'picks'}</span>
       <span className="e">{fmt0(stake)} stake earns <b><Roll value={pts} /> pts</b></span>
     </button>}
     <nav>
-      {TABS.map(([k, l, ic]) => <button key={k} className={tab === k ? 'on' : ''} aria-label={l} onClick={() => { setTab(k); scrollTo(0, 0); }}><Symbol name={ic} size={22} />{l}</button>)}
-      <button className={tab === 'profile' ? 'on' : ''} aria-label="Profile" onClick={() => { setTab('profile'); scrollTo(0, 0); }}>
+      {TABS.map(([k, l, ic]) => <button key={k} className={tab === k && !stockOpen ? 'on' : ''} aria-label={l} onClick={() => { setStockOpen(null); setTab(k); scrollTo(0, 0); }}><Symbol name={ic} size={22} />{l}</button>)}
+      <button className={tab === 'profile' && !stockOpen ? 'on' : ''} aria-label="Profile" onClick={() => { setStockOpen(null); setTab('profile'); scrollTo(0, 0); }}>
         <span className="avatar">{initialsOf(d.profile?.display_name ?? 'You')}{!d.broker?.connected && <i className="dot" />}</span>Profile
       </button>
     </nav>
@@ -213,7 +239,6 @@ function Shell({ session }: { session: Session }) {
       brokerConnected={!!d.broker?.connected} onNeedBroker={() => setBrokerOpen(true)}
       onLocked={() => { setCart([]); setSlipOpen(false); d.reload(); }} />
     <BrokerSheet open={brokerOpen} current={d.broker} uid={session.user.id} onClose={() => setBrokerOpen(false)} onDone={() => { d.reload(); say('Connected (simulated)'); }} />
-    <StockSheet ticker={stockOpen} d={d} gm={gm} onClose={() => setStockOpen(null)} />
     <Reveals d={d} gm={gm} />
   </>;
 }
@@ -606,43 +631,67 @@ function StockRow({ s, price, onOpen, right }: { s: Stock; price?: number; onOpe
   </button>;
 }
 
-function StockSheet({ ticker, d, gm, onClose }: { ticker: string | null; d: ReturnType<typeof useData>; gm: Record<string, Game>; onClose: () => void }) {
+const RANGES: [string, number, string][] = [['1M', 32, 'Past month'], ['3M', 95, 'Past 3 months'], ['1Y', 370, 'Past year'], ['5Y', 1900, 'Past 5 years']];
+function StockPage({ ticker, d, gm, onClose }: { ticker: string; d: ReturnType<typeof useData>; gm: Record<string, Game>; onClose: () => void }) {
+  const [range, setRange] = useState(1); const [pat, setPat] = useState<number | null>(null);
   const [years, setYears] = useState(5); const [at, setAt] = useState<number | null>(null);
-  useEffect(() => { setYears(5); setAt(null); }, [ticker]);
-  const s = ticker ? d.stocks.find(x => x.ticker === ticker) : null;
-  if (!s) return <><div className="scrim" /><div className="sheet" /></>;
-  const price = d.prices[s.ticker];
+  const { hist, failed } = useHistory(ticker);
+  useEffect(() => { setRange(1); setYears(5); setAt(null); setPat(null); }, [ticker]);
+  const s = d.stocks.find(x => x.ticker === ticker);
+  if (!s) return null;
+  const [, days, rangeLabel] = RANGES[range];
+  const cutoff = new Date(Date.now() - days * 86400e3).toISOString().slice(0, 10);
+  const slice = hist ? thin(hist.filter(p => p[0] >= cutoff)) : null;
+  const priceVals = slice ? slice.map(p => p[1]) : [];
+  const haveChart = slice != null && priceVals.length > 1;
+  const latest = d.prices[s.ticker] ?? (hist?.length ? hist[hist.length - 1][1] : undefined);
+  const up = haveChart && priceVals[priceVals.length - 1] >= priceVals[0];
+  const chg = haveChart ? priceVals[priceVals.length - 1] - priceVals[0] : 0;
+  const chgPct = haveChart && priceVals[0] ? (chg / priceVals[0]) * 100 : 0;
+  const pai = pat != null && slice && pat < slice.length ? pat : priceVals.length - 1;
+  const scrubbing = pat != null && slice != null;
+  const dateLbl = (iso: string) => new Date(iso + 'T12:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: '2-digit' });
   const held = d.picks.filter(p => gm[p.game_id] && p.ticker === s.ticker && p.filled_at && p.shares);
   const shares = held.reduce((t, p) => t + Number(p.shares), 0);
   const cost = held.reduce((t, p) => t + Number(p.stake), 0);
-  const val = price ? shares * price : cost;
+  const val = latest ? shares * latest : cost;
   const curve = Array.from({ length: years + 1 }, (_, i) => project(100, s.avg_return_10y, i));
   const ai = at ?? years;
-  return <><div className="scrim open" onClick={onClose} /><div className="sheet open">
-    <div className="grab" />
-    <div className="row"><div style={{ display: 'flex', alignItems: 'center', gap: 10 }}><span className="sdisc big" aria-hidden="true">{s.ticker.slice(0, 2)}</span>
-      <div><div className="side" style={{ fontSize: 20 }}>{s.ticker}</div><div className="nm" style={{ fontSize: 13, color: 'var(--muted)' }}>{s.name}</div></div></div>
-      {price ? <div style={{ textAlign: 'right' }}><div style={{ fontWeight: 800, fontSize: 20 }}>{fmt(price)}</div><div className="small">latest price</div></div> : null}</div>
-    <div className="eyebrow" style={{ marginTop: 8 }}>{TIER_TAG[s.tier] ?? ''}</div>
-    <div className="row" style={{ marginTop: 10 }}>
+  return <section className="view">
+    <div className="row"><button className="back" aria-label="Back" onClick={onClose}><Symbol name="arrowleft" size={20} /></button><span className={`tag t${s.tier}`}>{(TIER_TAG[s.tier] ?? '').split(' · ')[0]}</span></div>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}><span className="sdisc big" aria-hidden="true">{s.ticker.slice(0, 2)}</span>
+      <div><div className="side" style={{ fontSize: 20 }}>{s.ticker}</div><div style={{ fontSize: 13, color: 'var(--muted)' }}>{s.name}</div></div></div>
+    {latest != null && <div className="sp-price"><Roll value={scrubbing ? slice![pai][1] : latest} format={n => fmt(n)} /></div>}
+    {haveChart && <div className={'sp-change ' + (up ? 'up' : 'dn')}>
+      <b><Symbol name={up ? 'uptri' : 'downtri'} size={14} />{fmt(Math.abs(chg))} ({Math.abs(chgPct).toFixed(1)}%)</b>
+      <span>· {scrubbing ? dateLbl(slice![pai][0]) : rangeLabel.toLowerCase()}</span>
+    </div>}
+    {haveChart ? <>
+      <LineChart fit series={[{ color: up ? 'var(--mint)' : 'var(--dim)', vals: priceVals, area: true }]} n={priceVals.length} active={pai} onActive={setPat}
+        xLabels={[dateLbl(slice![0][0]), 'Now']} label={`${s.ticker} price, ${rangeLabel.toLowerCase()}`} />
+      <div className="chips">{RANGES.map(([l], i) => <button key={l} className={'chip ' + (range === i ? 'on' : '')} onClick={() => { setRange(i); setPat(null); }}>{l}</button>)}</div>
+    </> : failed ? <div className="card calm"><div style={{ fontWeight: 700 }}>The price chart is warming up</div><p className="hint" style={{ margin: '6px 0 0' }}>History for {s.ticker} appears once the engine serves it. Everything below is live.</p></div>
+      : <div className="card"><p className="hint" style={{ margin: 0 }}>Drawing the chart…</p></div>}
+    <div className="row" style={{ marginTop: 6 }}>
       <span className="small">10-yr avg return <b className="mint">+{s.avg_return_10y}%/yr</b></span>
       <span className="small">worst drop <b>{s.max_drawdown}%</b></span>
     </div>
-    <div className="readout" style={{ marginTop: 16 }}>$100 becomes ~<b className="mint"><Roll value={project(100, s.avg_return_10y, ai)} format={fmt0} /></b> after {ai} {ai === 1 ? 'year' : 'years'}</div>
-    <LineChart series={[{ color: 'var(--mint)', vals: curve, area: true }]} n={years + 1} active={ai} onActive={setAt} xLabels={['Now', `${years} yrs`]} label={`Projection of $100 in ${s.ticker} over ${years} years`} />
-    <div className="chips">{[1, 5, 10, 20, 25].map(y => <button key={y} className={'chip ' + (years === y ? 'on' : '')} onClick={() => { setYears(y); setAt(null); }}>{y} yr</button>)}</div>
-    {shares > 0 && <div className="card" style={{ margin: '10px 0' }}>
+    {shares > 0 && <div className="card" style={{ margin: '12px 0' }}>
       <div style={{ fontWeight: 700 }}>You own {shares.toFixed(4)} shares</div>
       <div className="meta" style={{ marginTop: 4 }}>{fmt0(cost)} staked · now {fmt(val)} · <b className={val - cost >= 0 ? 'mint' : ''}>{val - cost >= 0 ? '+' : ''}{fmt(val - cost)}</b></div>
     </div>}
-    <div className="disc">Hypothetical, using the approximate 10-year average annual return and worst peak-to-trough drop. Past returns do not predict future results. Investibet never recommends a stock; any pick can be backed with any stock on the board. Not advice.</div>
-    <button className="btn ghost" style={{ marginTop: 10 }} onClick={onClose}>Done</button>
-  </div></>;
+    <div className="gp-sec">If it keeps its 10-year average</div>
+    <div className="readout">$100 becomes ~<b className="mint"><Roll value={project(100, s.avg_return_10y, ai)} format={fmt0} /></b> after {ai} {ai === 1 ? 'year' : 'years'}</div>
+    <LineChart series={[{ color: 'var(--mint)', vals: curve, area: true }]} n={years + 1} active={ai} onActive={setAt} xLabels={['Now', `${years} yrs`]} label={`Projection of $100 in ${s.ticker} over ${years} years`} />
+    <div className="chips">{[1, 5, 10, 20, 25].map(y => <button key={y} className={'chip ' + (years === y ? 'on' : '')} onClick={() => { setYears(y); setAt(null); }}>{y} yr</button>)}</div>
+    <div className="disc">Hypothetical, using the approximate 10-year average annual return and worst peak-to-trough drop. Past prices and returns do not predict future results. Investibet never recommends a stock; any pick can be backed with any stock on the board. Not advice.</div>
+  </section>;
 }
 
 /* ---------- owned: the live portfolio, its chart, and stock search ---------- */
 function Owned({ d, gm, onStock }: { d: ReturnType<typeof useData>; gm: Record<string, Game>; onStock: (t: string) => void }) {
   const [q, setQ] = useState(''); const [view, setView] = useState<'owned' | 'book'>('owned'); const [at, setAt] = useState<number | null>(null);
+  const [lane, setLane] = useState(0);
   const mine = d.picks.filter(p => gm[p.game_id]);
   const filled = mine.filter(p => p.filled_at && p.shares);
   const pending = mine.filter(p => !p.filled_at);
@@ -703,7 +752,13 @@ function Owned({ d, gm, onStock }: { d: ReturnType<typeof useData>; gm: Record<s
       <div className="card"><div className="small" style={{ marginBottom: 8 }}>If everything here grew at its 10-year average</div>
         <div className="ladder"><div><div className="l">1 yr</div><div className="v">{fmt0(proj(1))}</div></div><div><div className="l">5 yr</div><div className="v">{fmt0(proj(5))}</div></div><div><div className="l">10 yr</div><div className="v">{fmt0(proj(10))}</div></div></div>
         <div className="disc">Hypothetical. Uses each ticker's approximate 10-year average annual return. Past returns do not predict future results. Nothing here is investment advice.</div></div>
-      <div className="disc">Day-by-day movement arrives once the engine stores daily closes. Until then, movement is measured from your buy price.</div>
+      <div className="disc">Movement is measured from your buy price.</div>
+    </>}
+    {!query && <>
+      <div className="lg-head"><Symbol name="chart" size={16} /><h3>Browse stocks</h3></div>
+      <div className="chips">{TIERS.map((t, i) => <button key={t} className={'chip ' + (lane === i ? 'on' : '')} onClick={() => setLane(i)}>{t}</button>)}</div>
+      {d.stocks.filter(x => x.tier === lane).sort((a, b) => a.ticker.localeCompare(b.ticker)).map(x => <StockRow key={x.ticker} s={x} price={d.prices[x.ticker]} onOpen={onStock} />)}
+      <div className="disc">Alphabetical within each lane, never ranked by return. Investibet never recommends a stock.</div>
     </>}
   </section>;
 }
@@ -754,6 +809,16 @@ function ProfileTab({ d, gm, say, onBroker }: { d: ReturnType<typeof useData>; g
   </section>;
 }
 
+/* ---------- confetti: streak and invested milestones only, never plain opens ---------- */
+function Confetti() {
+  const pieces = useMemo(() => Array.from({ length: 56 }, (_, i) => ({
+    left: Math.random() * 100, delay: Math.random() * 0.45, dur: 1.1 + Math.random() * 0.9,
+    color: ['#19B37B', '#F5C451', '#6B7CF5', '#F3BBFF'][i % 4], rot: Math.random() * 360, scale: 0.7 + Math.random() * 0.8,
+  })), []);
+  return <div className="confetti" aria-hidden="true">{pieces.map((p, i) =>
+    <i key={i} style={{ left: p.left + '%', background: p.color, animationDelay: p.delay + 's', animationDuration: p.dur + 's', transform: `rotate(${p.rot}deg) scale(${p.scale})` }} />)}</div>;
+}
+
 /* ---------- reveals ---------- */
 function Reveals({ d, gm }: { d: ReturnType<typeof useData>; gm: Record<string, Game> }) {
   const [seen, setSeen] = useState<Set<string>>(() => new Set(JSON.parse(localStorage.getItem('ib_seen') || '[]'))); const [cur, setCur] = useState<Pick | null>(null); const [phase, setPhase] = useState<'wait' | 'show'>('wait');
@@ -765,7 +830,10 @@ function Reveals({ d, gm }: { d: ReturnType<typeof useData>; gm: Record<string, 
   const g = gm[cur.game_id]; const won = cur.status === 'won', push = cur.status === 'push' || cur.status === 'void';
   const label = cur.market === 'prop' ? cur.selection.split('|')[0] : cur.selection + (cur.market === 'h2h' ? '' : ' ' + pt(cur.point));
   const next = () => { const s = new Set(seen); s.add(cur.id); localStorage.setItem('ib_seen', JSON.stringify([...s])); setSeen(s); setCur(null); };
-  return <div className="reveal" onClick={() => phase === 'wait' && setPhase('show')}><div className={'card2 ' + (phase === 'wait' ? 'shimmer' : 'pop ' + (won ? 'win' : ''))}>
+  const streakNow = d.profile?.streak ?? 0;
+  return <div className="reveal" onClick={() => phase === 'wait' && setPhase('show')}>
+    {phase === 'show' && won && (streakNow === 3 || streakNow === 5) && <Confetti />}
+    <div className={'card2 ' + (phase === 'wait' ? 'shimmer' : 'pop ' + (won ? 'win' : ''))}>
     {phase === 'wait' ? <><p>{g.away} at {g.home}</p><div className="big">{label}</div><p>{oddsTxt(cur.odds)} · {fmt0(Number(cur.stake))} of {cur.ticker}</p><p style={{ marginTop: 14 }}>Final…</p></>
       : push ? <><p>{label} {oddsTxt(cur.odds)}</p><div className="big gold">Push</div><p>No points, streak intact. You still own {fmt0(Number(cur.stake))} of {cur.ticker}.</p></>
       : won ? <><p>{label} {oddsTxt(cur.odds)}</p><div className="big mint">+{Math.round(cur.points)} pts</div>{(d.profile?.streak ?? 0) >= 3 && <p className="gold" style={{ fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}><Symbol name="flame" size={14} />{d.profile!.streak} straight · {d.profile!.streak >= 5 ? '2x' : '1.5x'} points</p>}<p>And you still own {fmt0(Number(cur.stake))} of {cur.ticker}.</p></>

@@ -22,6 +22,8 @@ const GLYPHS: Record<string, ReactElement> = {
   live: <><circle cx="12" cy="12" r="2.4" fill="currentColor" stroke="none" /><path d="M7.5 7.5a6.4 6.4 0 0 0 0 9M16.5 7.5a6.4 6.4 0 0 1 0 9" /></>,
   xmark: P('M6 6l12 12M18 6L6 18'),
   arrowleft: P('M19 12H5M12 19l-7-7 7-7'),
+  uptri: <path d="M12 7l6 8H6z" fill="currentColor" stroke="none" />,
+  downtri: <path d="M12 17l-6-8h12z" fill="currentColor" stroke="none" />,
   chevron: P('M9 5l7 7-7 7'),
   copy: <><rect x="9" y="9" width="11" height="11" rx="2" /><path d="M5 15V5a2 2 0 0 1 2-2h8" /></>,
   picks: P('M4 6h16v12H4zM8 10h8M8 14h5'),
