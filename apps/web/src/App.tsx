@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
+import { useEffect, useId, useMemo, useRef, useState, useCallback } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { sb, ENABLE_PROPS } from './lib/supabase';
 import Symbol from './Symbol';
@@ -42,6 +42,19 @@ function Roll({ value, format = (n: number) => String(Math.round(n)) }: { value:
     return () => cancelAnimationFrame(raf);
   }, [value]);
   return <>{format(disp)}</>;
+}
+
+/* ---------- the flame: gradient fill, always alive, glows from streak 3 ---------- */
+function Flame({ size = 26, streak = 0 }: { size?: number; streak?: number }) {
+  const uid = useId().replace(/[^a-zA-Z0-9]/g, '');
+  const hot = streak >= 3;
+  return <svg width={size} height={size} viewBox="0 0 24 24" className={'flameicon' + (hot ? ' hot' : '') + (streak === 0 ? ' cold' : '')} aria-hidden="true">
+    <defs><linearGradient id={`flg${uid}`} x1="0" y1="1" x2="0" y2="0">
+      <stop offset="0" stopColor="#FF5D2E" /><stop offset=".55" stopColor="#FF9F0A" /><stop offset="1" stopColor="#FFD60A" />
+    </linearGradient></defs>
+    <path fill={`url(#flg${uid})`} d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z" />
+    <path fill="#FFF3C4" opacity=".85" d="M12.3 20.6a3.2 3.2 0 0 0 3.2-3.2c0-1.1-.55-2-1.35-2.75-.85.8-1.85 1.2-1.85 2.25a1.85 1.85 0 0 1-1.85-1.85c-.8.75-1.35 1.65-1.35 2.75a3.2 3.2 0 0 0 3.2 3.2z" />
+  </svg>;
 }
 
 /* ---------- price history: real daily closes via the engine, cached per ticker ---------- */
@@ -90,6 +103,38 @@ function LineChart({ series, n, active, onActive, xLabels, label, fit }: {
     {Array.from({ length: n }, (_, i) => <rect key={i} x={x(i) - colW / 2} y={0} width={colW} height={H} fill="transparent" onPointerDown={() => onActive(i)} onPointerEnter={() => onActive(i)} />)}
     <text x={L} y={H - 6} fontSize="10" fill="var(--dim)">{xLabels[0]}</text>
     <text x={W - R} y={H - 6} fontSize="10" fill="var(--dim)" textAnchor="end">{xLabels[1]}</text>
+  </svg>;
+}
+
+/* ---------- worth chart: solid gradient past, dashed future at 10-yr averages, flat book line ---------- */
+function WorthChart({ past, book, future, mode, active, onActive }: {
+  past: number[]; book: number[]; future: number[]; mode: 'owned' | 'book'; active: number; onActive: (i: number) => void;
+}) {
+  const uid = useId().replace(/[^a-zA-Z0-9]/g, '');
+  const W = 360, H = 170, T = 14, B = 14;
+  const comb = [...past, ...future.slice(1)];
+  const bookFlat = book.length ? book[book.length - 1] : 0;
+  const bookComb = [...book, ...future.slice(1).map(() => bookFlat)];
+  const N = comb.length;
+  const used = mode === 'book' ? [...comb, ...bookComb] : comb;
+  const max = Math.max(1, ...used) * 1.08;
+  const x = (i: number) => (N > 1 ? (i * W) / (N - 1) : 0);
+  const y = (v: number) => T + (1 - v / max) * (H - T - B);
+  const pts = (vals: number[], from = 0) => vals.map((v, i) => `${x(i + from).toFixed(1)},${y(v).toFixed(1)}`).join(' ');
+  const ti = past.length - 1; // today
+  const colW = W / Math.max(1, N - 1);
+  return <svg viewBox={`0 0 ${W} ${H}`} width="100%" role="img" aria-label="What you own, past and projected" style={{ display: 'block', touchAction: 'pan-y' }}>
+    <defs><linearGradient id={`wg${uid}`} x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stopColor="var(--peri)" /><stop offset="1" stopColor="var(--mint)" />
+    </linearGradient></defs>
+    <polygon points={`${x(0)},${y(0)} ${pts(past)} ${x(ti)},${y(0)}`} fill="var(--mint)" opacity="0.07" />
+    {mode === 'book' && <polyline points={pts(bookComb)} fill="none" stroke="var(--coral)" strokeWidth="2" strokeDasharray="5 4" strokeLinejoin="round" opacity=".85" />}
+    {future.length > 1 && <polyline points={pts(future, ti)} fill="none" stroke="var(--mint)" strokeWidth="2.5" strokeDasharray="2 5" strokeLinecap="round" opacity=".7" />}
+    <polyline points={pts(past)} fill="none" stroke={`url(#wg${uid})`} strokeWidth="3" strokeLinejoin="round" strokeLinecap="round" />
+    <circle cx={x(ti)} cy={y(past[ti])} r="5.5" fill="var(--mint)" stroke="#fff" strokeWidth="2.5" />
+    <circle cx={x(active)} cy={y(comb[Math.min(active, N - 1)])} r="4.5" fill={active > ti ? 'var(--mint)' : 'var(--peri)'} stroke="#fff" strokeWidth="2" opacity={active === ti ? 0 : 1} />
+    {mode === 'book' && <circle cx={x(active)} cy={y(bookComb[Math.min(active, N - 1)])} r="4" fill="var(--coral)" stroke="#fff" strokeWidth="2" />}
+    {Array.from({ length: N }, (_, i) => <rect key={i} x={x(i) - colW / 2} y={0} width={colW} height={H} fill="transparent" onPointerDown={() => onActive(i)} onPointerEnter={() => onActive(i)} />)}
   </svg>;
 }
 
@@ -383,7 +428,7 @@ function Home({ d, uid, cart, onToggle, onCup, onStock }: { d: ReturnType<typeof
         {invested > 0 && <div className="s">{retPct >= 0 ? '+' : ''}{retPct.toFixed(1)}% return so far · worth ~{fmt0(proj5)} in 5 years at 10-yr averages</div>}
         <div className="s">{d.profile?.weekly_cap ? `${fmt0(weekStaked)} of ${fmt0(Number(d.profile.weekly_cap))} staked this week` : `${fmt0(weekStaked)} staked this week`}</div>
       </div>
-      <div className={'flamebox ' + (streak >= 3 ? 'hot' : '')} aria-label={`Streak ${streak}`}><Symbol name="flame" size={22} /><span>{streak}</span></div>
+      <div className="flamebox" aria-label={`Streak ${streak}`}><Flame size={32} streak={streak} /><span className={streak >= 3 ? 'gold' : streak > 0 ? '' : 'cold'}>{streak}</span></div>
     </div>
 
     <Promo d={d} uid={uid} invested={invested} onCup={onCup} />
@@ -622,9 +667,9 @@ function Cup({ d, uid }: { d: ReturnType<typeof useData>; uid: string }) {
 
 /* ---------- stock row and detail sheet (ROI patterns: Discover rows, big-number detail) ---------- */
 const TIER_TAG = ['The favorite · steady', 'The value play · in between', 'The longshot · wild ride'];
-function StockRow({ s, price, onOpen, right }: { s: Stock; price?: number; onOpen: (t: string) => void; right?: { v: string; sub: string; dn?: boolean } }) {
+function StockRow({ s, price, onOpen, right, dot }: { s: Stock; price?: number; onOpen: (t: string) => void; right?: { v: string; sub: string; dn?: boolean }; dot?: string }) {
   return <button className="stockrow" onClick={() => onOpen(s.ticker)}>
-    <span className="sdisc" aria-hidden="true">{s.ticker.slice(0, 2)}</span>
+    <span className="sdisc" aria-hidden="true" style={dot ? { boxShadow: `inset 0 0 0 2px ${dot}` } : undefined}>{s.ticker.slice(0, 2)}</span>
     <div><div className="tk">{s.ticker}</div><div className="nm">{s.name}</div></div>
     {right ? <div><div className="pr">{right.v}</div><div className={'ch' + (right.dn ? ' dn' : '')}>{right.sub}</div></div>
       : <div>{price ? <div className="pr">{fmt(price)}</div> : null}<div className="ch">+{s.avg_return_10y}%/yr</div></div>}
@@ -688,10 +733,15 @@ function StockPage({ ticker, d, gm, onClose }: { ticker: string; d: ReturnType<t
   </section>;
 }
 
-/* ---------- owned: the live portfolio, its chart, and stock search ---------- */
+/* ---------- owned: Roi's dashboard anatomy. Borderless hero, full-bleed worth chart with a dashed future, hairline groups. ---------- */
+const ALLOC = ['var(--mint)', 'var(--peri)', 'var(--gold)', '#E560B6', '#3FB6C9', '#8E8E93'];
+const HORIZONS = [1, 5, 10, 25];
 function Owned({ d, gm, onStock }: { d: ReturnType<typeof useData>; gm: Record<string, Game>; onStock: (t: string) => void }) {
   const [q, setQ] = useState(''); const [view, setView] = useState<'owned' | 'book'>('owned'); const [at, setAt] = useState<number | null>(null);
-  const [lane, setLane] = useState(0);
+  const [lane, setLane] = useState(0); const [horizon, setHorizon] = useState(5);
+  const [hide, setHide] = useState(() => localStorage.getItem('ib_hide') === '1');
+  const toggleHide = () => { localStorage.setItem('ib_hide', hide ? '0' : '1'); setHide(!hide); };
+  const mask = (s: string) => (hide ? '$••••' : s);
   const mine = d.picks.filter(p => gm[p.game_id]);
   const filled = mine.filter(p => p.filled_at && p.shares);
   const pending = mine.filter(p => !p.filled_at);
@@ -702,60 +752,82 @@ function Owned({ d, gm, onStock }: { d: ReturnType<typeof useData>; gm: Record<s
     h.shares += Number(p.shares); h.cost += Number(p.stake); return acc;
   }, {})).map(h => ({ ...h, value: d.prices[h.ticker] ? h.shares * d.prices[h.ticker] : h.cost, stock: d.stocks.find(x => x.ticker === h.ticker) }))
     .sort((a, b) => b.value - a.value);
-  const move = holdings.reduce((s, h) => s + (h.value - h.cost), 0);
-  const proj = (y: number) => holdings.reduce((s, h) => s + project(h.value, h.stock?.avg_return_10y ?? 10, y), 0) + pending.reduce((s, p) => s + project(Number(p.stake), d.stocks.find(x => x.ticker === p.ticker)?.avg_return_10y ?? 10, y), 0);
+  const move = value - staked;
+  const movePct = staked ? (move / staked) * 100 : 0;
 
-  // Your money vs the sportsbook counterfactual, pick by pick in lock order; the last point is today at market value
+  // Solid line: your money pick by pick, ending at today's value. Dashed: today grown at each holding's 10-yr average.
   const chrono = [...mine].sort((a, b) => a.locked_at.localeCompare(b.locked_at));
   const ownedPts = [0]; const bookPts = [0]; let oc = 0, bc = 0;
   for (const p of chrono) { oc += Number(p.stake); bc += Number(p.stake) + counterfactualDelta(Number(p.stake), p.odds, p.status as 'won' | 'lost' | 'push' | 'void' | 'pending'); ownedPts.push(oc); bookPts.push(bc); }
   ownedPts.push(value); bookPts.push(bc);
-  const n = ownedPts.length;
-  const ai = Math.min(at ?? n - 1, n - 1);
-  const ptLabel = ai === 0 ? 'At the start' : ai === n - 1 ? 'Today' : `After pick ${ai}`;
-  const diff = ownedPts[ai] - bookPts[ai];
+  const projAt = (y: number) => holdings.reduce((s, h) => s + project(h.value, h.stock?.avg_return_10y ?? 10, y), 0)
+    + pending.reduce((s, p) => s + project(Number(p.stake), d.stocks.find(x => x.ticker === p.ticker)?.avg_return_10y ?? 10, y), 0);
+  const FUT = 8;
+  const future = Array.from({ length: FUT + 1 }, (_, k) => projAt((horizon * k) / FUT));
+  const n = ownedPts.length + FUT;
+  const ti = ownedPts.length - 1;
+  const ai = Math.min(at ?? ti, n - 1);
+  const futYears = ai > ti ? (horizon * (ai - ti)) / FUT : 0;
+  const aOwn = ai <= ti ? ownedPts[ai] : future[ai - ti];
+  const aBook = ai <= ti ? bookPts[ai] : bc;
+  const ptLabel = ai === 0 ? 'At the start' : ai === ti ? 'Today' : ai < ti ? `After pick ${ai}` : `In ~${futYears < 1 ? Math.round(futYears * 12) + ' months' : (Math.round(futYears * 10) / 10) + ' years'}`;
+  const diff = aOwn - aBook;
 
   const query = q.trim().toLowerCase();
   const results = query ? d.stocks.filter(x => x.ticker.toLowerCase().includes(query) || x.name.toLowerCase().includes(query)).sort((a, b) => a.ticker.localeCompare(b.ticker)).slice(0, 20) : [];
+  const allocTotal = holdings.reduce((s, h) => s + h.value, 0) + pending.reduce((s, p) => s + Number(p.stake), 0);
 
-  return <section className="view"><h2 style={{ fontSize: 22 }}>Owned</h2>
-    <div className="searchbar"><Symbol name="magnifyingglass" size={16} /><input className="search" placeholder="Find a stock" aria-label="Find a stock" value={q} onChange={e => setQ(e.target.value)} /></div>
+  return <section className="view">
+    <div className="ox-head">
+      <div>
+        <div className="ox-label">Owned</div>
+        <div className="ox-value"><Roll value={value} format={n2 => mask(fmt(n2))} /></div>
+        {mine.length > 0 && <div className={'sp-change ' + (move >= 0 ? 'up' : 'dn')}>
+          <b><Symbol name={move >= 0 ? 'uptri' : 'downtri'} size={14} />{mask(fmt(Math.abs(move)))} ({Math.abs(movePct).toFixed(1)}%)</b>
+          <span>· since you staked it</span>
+        </div>}
+      </div>
+      <button className="back" aria-label={hide ? 'Show amounts' : 'Hide amounts'} onClick={toggleHide}><Symbol name={hide ? 'eyeslash' : 'eye'} size={20} /></button>
+    </div>
+    <div className="searchbar" style={{ marginTop: 10 }}><Symbol name="magnifyingglass" size={16} /><input className="search" placeholder="Find a stock" aria-label="Find a stock" value={q} onChange={e => setQ(e.target.value)} /></div>
+
     {query ? <>
       <div className="lg-head"><Symbol name="chart" size={16} /><h3>Stocks</h3></div>
       {results.length ? results.map(x => <StockRow key={x.ticker} s={x} price={d.prices[x.ticker]} onOpen={onStock} />)
         : <div className="empty"><Symbol name="magnifyingglass" size={48} /><p>Nothing matches "{q.trim()}". Try the ticker or the name.</p></div>}
       <div className="disc">Alphabetical, never ranked by return. Investibet never recommends a stock.</div>
-    </> : !mine.length ? <div className="card calm"><div style={{ fontWeight: 700 }}>Nothing owned yet</div><p className="hint" style={{ margin: '6px 0 0' }}>Back a pick on Home. Win or miss, the stake buys stock that shows up here. Search above to read up on any stock first.</p></div>
-    : <>
-      <div className="card">
-        <div className="small">Portfolio value</div>
-        <div className="big" style={{ margin: '4px 0' }}><Roll value={value} format={fmt0} /></div>
-        <div className="small">{fmt0(staked)} staked across {mine.length} picks{holdings.length ? <> · <b className={move >= 0 ? 'mint' : ''}>{move >= 0 ? '+' : ''}{fmt(move)}</b> since you bought</> : null}</div>
-      </div>
-      <div className="card">
-        <div className="seg">{([['owned', 'Owned'], ['book', 'Vs a sportsbook']] as const).map(([k, l]) => <button key={k} className={view === k ? 'on' : ''} onClick={() => setView(k)}>{l}</button>)}</div>
-        <LineChart n={n} active={ai} onActive={setAt} xLabels={['Start', 'Today']} label="Your money over time"
-          series={view === 'owned' ? [{ color: 'var(--mint)', vals: ownedPts, area: true }]
-            : [{ color: 'var(--mint)', vals: ownedPts }, { color: 'var(--coral)', vals: bookPts, dash: true }]} />
-        <div className="readout">{ptLabel}: you own {fmt0(ownedPts[ai])}{view === 'book' ? <> · at a sportsbook you'd have {fmt0(bookPts[ai])}</> : null}
-          {view === 'book' && <div className="sub">{diff >= 0 ? `A sportsbook would have kept ${fmt0(diff)} of this by now. You invested it instead.` : `Betting would be up ${fmt0(-diff)} for now. You own the stock either way.`}</div>}
+    </> : <>
+      {mine.length > 0 ? <>
+        <div className="bleed">
+          <WorthChart past={ownedPts} book={bookPts} future={future} mode={view} active={ai} onActive={setAt} />
+        </div>
+        <div className="chips" style={{ justifyContent: 'space-between' }}>
+          {HORIZONS.map(h => <button key={h} className={'chip slim ' + (horizon === h ? 'on' : '')} onClick={() => { setHorizon(h); setAt(null); }}>+{h}y</button>)}
+          <button className={'chip slim ' + (view === 'book' ? 'on' : '')} onClick={() => { setView(view === 'book' ? 'owned' : 'book'); }}>Vs a sportsbook</button>
+        </div>
+        <div className="readout">{ptLabel}: {ai > ti && '~'}{mask(fmt0(aOwn))} {ai > ti && <span className="sub" style={{ display: 'inline' }}>at 10-yr averages</span>}
+          {view === 'book' && <div className="sub">{ai > ti ? `A sportsbook line stays flat: still ${mask(fmt0(aBook))}. Dashed mint is money that compounds.`
+            : diff >= 0 ? `A sportsbook would have kept ${fmt0(diff)} of this by now. You invested it instead.`
+            : `Betting would be up ${fmt0(-diff)} for now. You own the stock either way.`}</div>}
         </div>
         {view === 'book' && <div className="legend"><span><i className="dt" style={{ background: 'var(--mint)' }} />You own</span><span><i className="dt" style={{ background: 'var(--coral)' }} />At a sportsbook</span></div>}
-        <div className="disc">Each step is a locked pick; the last point is today's value. The dashed line is what the same stakes would have left at a sportsbook. Tap the chart to walk through it.</div>
-      </div>
-      {holdings.map(h => <StockRow key={h.ticker} s={h.stock ?? { ticker: h.ticker, name: '', tier: 0, avg_return_10y: 10, max_drawdown: 0 }} onOpen={onStock}
-        right={{ v: fmt(h.value), sub: `${h.value - h.cost >= 0 ? '+' : ''}${fmt(h.value - h.cost)}`, dn: h.value - h.cost < 0 }} />)}
-      {pending.length > 0 && <div className="card">
-        <div style={{ fontWeight: 700 }}>Buying at next market open</div>
-        {pending.map(p => <div key={p.id} className="small" style={{ marginTop: 6 }}>{fmt0(Number(p.stake))} of {p.ticker}</div>)}
-      </div>}
-      <div className="card"><div className="small" style={{ marginBottom: 8 }}>If everything here grew at its 10-year average</div>
-        <div className="ladder"><div><div className="l">1 yr</div><div className="v">{fmt0(proj(1))}</div></div><div><div className="l">5 yr</div><div className="v">{fmt0(proj(5))}</div></div><div><div className="l">10 yr</div><div className="v">{fmt0(proj(10))}</div></div></div>
-        <div className="disc">Hypothetical. Uses each ticker's approximate 10-year average annual return. Past returns do not predict future results. Nothing here is investment advice.</div></div>
-      <div className="disc">Movement is measured from your buy price.</div>
-    </>}
-    {!query && <>
-      <div className="lg-head"><Symbol name="chart" size={16} /><h3>Browse stocks</h3></div>
+        <div className="disc">Solid line: every locked pick, ending at today's value. Dashed: hypothetical growth at each holding's approximate 10-year average. Past returns do not predict future results. Not advice.</div>
+
+        {allocTotal > 0 && <div className="alloc" aria-hidden="true">
+          {holdings.map((h, i) => <span key={h.ticker} style={{ width: `${(h.value / allocTotal) * 100}%`, background: ALLOC[Math.min(i, ALLOC.length - 1)] }} />)}
+          {pending.length > 0 && <span style={{ width: `${(pending.reduce((s, p) => s + Number(p.stake), 0) / allocTotal) * 100}%`, background: 'var(--line)' }} />}
+        </div>}
+        <div className="lg-head" style={{ marginTop: 8 }}><h3>Holdings</h3><span className="small" style={{ marginLeft: 'auto' }}>{mask(fmt0(staked))} staked · {mine.length} picks</span></div>
+        {holdings.map((h, i) => <StockRow key={h.ticker} s={h.stock ?? { ticker: h.ticker, name: '', tier: 0, avg_return_10y: 10, max_drawdown: 0 }} onOpen={onStock} dot={ALLOC[Math.min(i, ALLOC.length - 1)]}
+          right={{ v: mask(fmt(h.value)), sub: `${h.value - h.cost >= 0 ? '+' : ''}${fmt(h.value - h.cost)}`, dn: h.value - h.cost < 0 }} />)}
+        {!holdings.length && <p className="hint">Your buys land here at the next market open.</p>}
+        {pending.length > 0 && <>
+          <div className="lg-head"><h3>Buying at next open</h3></div>
+          {pending.map(p => <div key={p.id} className="pendrow"><span className="sdisc">{p.ticker.slice(0, 2)}</span><span className="tk">{p.ticker}</span><span className="small" style={{ marginLeft: 'auto' }}>{fmt0(Number(p.stake))} queued</span></div>)}
+        </>}
+      </> : <div className="card calm"><div style={{ fontWeight: 700 }}>Nothing owned yet</div><p className="hint" style={{ margin: '6px 0 0' }}>Back a pick on Home. Win or miss, the stake buys stock that shows up here. Browse below to read up on any stock first.</p></div>}
+
+      <div className="lg-head" style={{ marginTop: 20 }}><Symbol name="chart" size={16} /><h3>Browse stocks</h3></div>
       <div className="chips">{TIERS.map((t, i) => <button key={t} className={'chip ' + (lane === i ? 'on' : '')} onClick={() => setLane(i)}>{t}</button>)}</div>
       {d.stocks.filter(x => x.tier === lane).sort((a, b) => a.ticker.localeCompare(b.ticker)).map(x => <StockRow key={x.ticker} s={x} price={d.prices[x.ticker]} onOpen={onStock} />)}
       <div className="disc">Alphabetical within each lane, never ranked by return. Investibet never recommends a stock.</div>

@@ -71,16 +71,30 @@ header{display:flex;align-items:center;justify-content:space-between;padding:18p
 .hero2 .b{font-size:14px;color:var(--coral)}.hero2 .b b{font-weight:700}
 .hero2 .b.muted{color:var(--muted)}
 .hero2 .s{font-size:12px;color:var(--dim);margin-top:6px}
-.flamebox{display:flex;flex-direction:column;align-items:center;gap:2px;color:var(--dim);font-weight:800;font-size:15px;padding:6px 10px;flex:none}
-.flamebox.hot{color:var(--gold)}
-.flamebox.hot svg{animation:flick 1.4s ease-in-out infinite;transform-origin:50% 90%}
-@keyframes flick{0%,100%{transform:scale(1)}30%{transform:scale(1.12) rotate(-2deg)}60%{transform:scale(1.05) rotate(2deg)}}
+.flamebox{display:flex;flex-direction:column;align-items:center;gap:2px;color:var(--ink);font-weight:800;font-size:16px;padding:6px 10px;flex:none}
+.flamebox .cold{color:var(--dim)}
+/* The flame is always alive: gradient fill, gentle flicker, glow from streak 3 */
+.flameicon{animation:flick 1.3s ease-in-out infinite;transform-origin:50% 88%}
+.flameicon.cold{filter:grayscale(.4);opacity:.55}
+.flameicon.hot{filter:drop-shadow(0 0 7px rgba(255,159,10,.75));animation-duration:.85s}
+@keyframes flick{0%,100%{transform:scale(1) rotate(0)}30%{transform:scale(1.1) rotate(-2.5deg)}60%{transform:scale(1.04) rotate(2deg)}80%{transform:scale(1.08) rotate(-1deg)}}
 .promo{width:100%;display:flex;align-items:flex-start;justify-content:space-between;gap:10px;text-align:left;background:var(--wash-party),var(--bg2);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin:0 0 10px}
 .promo .t{font-weight:700;font-size:17px;letter-spacing:-.02em}
 .promo .s{font-size:13px;color:var(--muted);margin-top:3px}
 .promo .x{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:50%;background:rgba(23,27,46,.06);color:var(--muted);flex:none}
-/* Stock rows, ROI's Discover pattern: monogram disc, ticker + name, price and return right */
-.stockrow{width:100%;display:grid;grid-template-columns:40px 1fr auto;gap:12px;align-items:center;padding:10px 6px;min-height:60px;text-align:left;border-radius:12px;background:var(--bg2);border:1px solid var(--line);margin:8px 0}
+/* Owned dashboard, Roi anatomy: borderless hero, full-bleed chart, hairline groups */
+.ox-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;padding-top:10px}
+.ox-label{font-size:16px;font-weight:700}
+.ox-value{font-size:42px;font-weight:800;letter-spacing:-.04em;margin:2px 0 4px}
+.bleed{margin:6px -16px 0}
+.alloc{display:flex;gap:2px;height:10px;border-radius:5px;overflow:hidden;margin:18px 0 2px}
+.alloc span{min-width:3px}
+.pendrow{display:flex;align-items:center;gap:12px;padding:12px 6px;border-bottom:1px solid var(--line)}
+.pendrow .tk{font-weight:700;font-size:15px}
+.chip.slim{min-height:38px;padding:0 12px}
+/* Stock rows, Roi's pattern: hairline dividers, no boxes */
+.stockrow{width:100%;display:grid;grid-template-columns:40px 1fr auto;gap:12px;align-items:center;padding:10px 6px;min-height:62px;text-align:left;border-bottom:1px solid var(--line);transition:transform .12s}
+.stockrow:active{transform:scale(.985)}
 .sdisc{width:36px;height:36px;border-radius:50%;background:var(--bg3);display:inline-flex;align-items:center;justify-content:center;font-weight:800;font-size:11px;letter-spacing:.02em;color:var(--muted);flex:none}
 .sdisc.big{width:44px;height:44px;font-size:13px}
 .stockrow .tk{font-weight:700;font-size:15px}
