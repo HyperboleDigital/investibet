@@ -137,7 +137,7 @@ function WorthChart({ past, future, active, onActive, endLabel }: {
     <circle cx={x(ti)} cy={y(past[ti])} r="5.5" fill="var(--mint)" stroke="#fff" strokeWidth="2.5" />
     <circle cx={x(active)} cy={y(comb[Math.min(active, N - 1)])} r="4.5" fill={active > ti ? 'var(--mint)' : 'var(--peri)'} stroke="#fff" strokeWidth="2" opacity={active === ti ? 0 : 1} />
     {future.length > 1 && <circle cx={x(N - 1)} cy={y(comb[N - 1])} r="3.5" fill="#fff" stroke="var(--mint)" strokeWidth="2" />}
-    <text x={W - 4} y={Math.min(y(comb[N - 1]) + 22, H - 16)} textAnchor="end" fontSize="12.5" fontWeight="800" fill="var(--mint)">{endLabel}</text>
+    <text x={W - 10} y={Math.min(y(comb[N - 1]) + 40, H - 18)} textAnchor="end" fontSize="12.5" fontWeight="800" fill="var(--mint)">{endLabel}</text>
     {Array.from({ length: N }, (_, i) => <rect key={i} x={x(i) - colW / 2} y={0} width={colW} height={H} fill="transparent" onPointerDown={() => onActive(i)} onPointerEnter={() => onActive(i)} />)}
   </svg>;
 }
