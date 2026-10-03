@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { basePoints, grade, scoreSequence, bestFifteen, potSplit, counterfactualDelta, implied, decimalOdds, stackOdds, stackPoints, bookValue, project, projectCapped } from './index';
+import { basePoints, grade, scoreSequence, bestFifteen, potSplit, counterfactualDelta, implied, decimalOdds, stackOdds, stackPoints, bookValue, project, projectSmart } from './index';
 
 describe('points', () => {
   it('equals the odds', () => { expect(basePoints(170)).toBe(170); expect(basePoints(-200)).toBe(50); expect(basePoints(-110)).toBe(91); });
@@ -48,10 +48,24 @@ describe('stacks', () => {
 });
 
 describe('projections', () => {
-  it('caps the compounding rate at 20 percent', () => {
-    expect(projectCapped(100, 70, 10)).toBeCloseTo(project(100, 20, 10));
-    expect(projectCapped(100, 8, 5)).toBeCloseTo(project(100, 8, 5));
-    expect(projectCapped(120, 70, 25)).toBeLessThan(12000);
+  it('a market-average stock projects at the market average', () => {
+    expect(projectSmart(100, 8, 10)).toBeCloseTo(project(100, 8, 10), 6);
+  });
+  it('shrinks and fades a hot decade instead of extrapolating it', () => {
+    const v15 = projectSmart(120, 70, 15);
+    expect(v15).toBeGreaterThan(400);   // still clearly outgrows the market
+    expect(v15).toBeLessThan(3500);     // but no eight-digit fantasy
+    expect(projectSmart(120, 70, 15)).toBeLessThan(project(120, 70, 15));
+  });
+  it('fades laggards up toward the market, gently', () => {
+    const v = projectSmart(100, 1.5, 10);
+    expect(v).toBeGreaterThan(project(100, 1.5, 10));
+    expect(v).toBeLessThan(project(100, 8, 10));
+  });
+  it('is monotonic in years and supports fractions', () => {
+    expect(projectSmart(100, 30, 2.5)).toBeGreaterThan(projectSmart(100, 30, 2));
+    expect(projectSmart(100, 30, 2.5)).toBeLessThan(projectSmart(100, 30, 3));
+    expect(projectSmart(100, 30, 0)).toBeCloseTo(100);
   });
 });
 

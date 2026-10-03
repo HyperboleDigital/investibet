@@ -134,11 +134,26 @@ export const bookValue = (picks: { stake: number; odds: number; status: Status }
 export const project = (invested: number, avgReturnPct: number, years: number) =>
   invested * Math.pow(1 + avgReturnPct / 100, years);
 
-/** User-facing projections cap the growth rate: a hot decade does not compound forever.
- *  NVDA's trailing 70%/yr over 25 years is $69M from $120, which is noise, not information. */
-export const PROJECT_CAP_PCT = 20;
-export const projectCapped = (invested: number, avgReturnPct: number, years: number) =>
-  project(invested, Math.min(avgReturnPct, PROJECT_CAP_PCT), years);
+/**
+ * Forward projection the way a desk would sketch it, not naive extrapolation:
+ * 1. Shrink the trailing edge over the market by half (a hot decade is part luck,
+ *    valuation expansion and survivorship; it does not repeat at full strength).
+ * 2. Decay the remaining edge toward the long-run market average with a 4-year
+ *    half-life (multi-stage fade, as in a fading-growth DCF).
+ * NVDA's 70%/yr projects hot early and ordinary later; nothing compounds at 70%
+ * forever, and nothing flatlines either. Supports fractional years.
+ */
+export const MARKET_AVG_PCT = 8;
+export function projectSmart(invested: number, avgReturnPct: number, years: number): number {
+  const edge0 = (avgReturnPct - MARKET_AVG_PCT) * 0.5;
+  const tau = 4 / Math.LN2;
+  const rate = (t: number) => (MARKET_AVG_PCT + edge0 * Math.exp(-t / tau)) / 100;
+  let v = invested;
+  const whole = Math.floor(years), frac = years - whole;
+  for (let t = 1; t <= whole; t++) v *= 1 + rate(t - 0.5);
+  if (frac > 0) v *= Math.pow(1 + rate(whole + 0.5), frac);
+  return v;
+}
 
 /** True while the US market is open (9:30 to 16:00 ET, Mon to Fri). Holidays ignored in v1. */
 export function marketOpen(at: Date): boolean {

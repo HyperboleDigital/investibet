@@ -2,7 +2,7 @@ import { useEffect, useId, useMemo, useRef, useState, useCallback } from 'react'
 import type { Session } from '@supabase/supabase-js';
 import { sb, ENABLE_PROPS } from './lib/supabase';
 import Symbol from './Symbol';
-import { implied, basePoints, potSplit, projectCapped, marketOpen, stackOdds, stackPoints, bookValue, counterfactualDelta } from '@investibet/core';
+import { implied, basePoints, potSplit, projectSmart, marketOpen, stackOdds, stackPoints, bookValue, counterfactualDelta } from '@investibet/core';
 
 /* ---------- types ---------- */
 type Game = { id: string; sport_key: string; league: string; home: string; away: string; commence_time: string; completed: boolean; home_score: number | null; away_score: number | null; period?: number | null; clock?: string | null };
@@ -351,7 +351,7 @@ function Home({ d, uid, cart, onToggle, onCup, onStock, openId, setOpenId }: { d
   const invested = mine.reduce((s, p) => s + Number(p.stake), 0);
   const kept = invested - book; // what the same picks would have cost at a sportsbook so far
   const retPct = invested ? ((value - invested) / invested) * 100 : 0;
-  const projAtH = (y: number) => mine.reduce((s, p) => { const st = d.stocks.find(x => x.ticker === p.ticker); const cur = p.shares && d.prices[p.ticker] ? Number(p.shares) * d.prices[p.ticker] : Number(p.stake); return s + projectCapped(cur, st?.avg_return_10y ?? 10, y); }, 0);
+  const projAtH = (y: number) => mine.reduce((s, p) => { const st = d.stocks.find(x => x.ticker === p.ticker); const cur = p.shares && d.prices[p.ticker] ? Number(p.shares) * d.prices[p.ticker] : Number(p.stake); return s + projectSmart(cur, st?.avg_return_10y ?? 10, y); }, 0);
   const weekStaked = mine.filter(p => gm[p.game_id] && sameWeek(gm[p.game_id].commence_time)).reduce((s, p) => s + Number(p.stake), 0);
   const streak = d.profile?.streak ?? 0;
   const stockHits = query ? d.stocks.filter(x => x.ticker.toLowerCase().includes(query) || x.name.toLowerCase().includes(query)).slice(0, 5) : [];
@@ -478,9 +478,9 @@ function Home({ d, uid, cart, onToggle, onCup, onStock, openId, setOpenId }: { d
     </div>
     {invested > 0 && <div className="proj5">
       <div className="row"><div className="l">In {hz} {hz === 1 ? 'year' : 'years'} this could be</div>
-        <div className="hzp">{[1, 5, 15].map(y => <button key={y} className={hz === y ? 'on' : ''} aria-pressed={hz === y} onClick={() => setHz(y)}>{y}y</button>)}</div></div>
+        <div className="hzp">{[1, 5, 10, 15].map(y => <button key={y} className={hz === y ? 'on' : ''} aria-pressed={hz === y} onClick={() => setHz(y)}>{y}y</button>)}</div></div>
       <div className="v">~<Roll value={projAtH(hz)} format={fmt0} /></div>
-      <div className="s">at your stocks' past averages, growth capped at 20%/yr · hypothetical, never advice</div>
+      <div className="s">a desk-style projection: hot streaks fade toward the market's long-run average · hypothetical, never advice</div>
     </div>}
 
     <Promo d={d} uid={uid} invested={invested} onCup={onCup} />
@@ -566,7 +566,7 @@ function Slip({ d, legs, stake, setStake, onRemove, onClose, onLocked, say, brok
     {single ? <>
       <div className="stake">{fmt0(stake)}</div>
       <input type="range" min={5} max={100} step={5} value={stake} onChange={e => setStake(+e.target.value)} aria-label="Stake" />
-      <div className="trio"><div><div className="l">Win</div><div className="v mint">{points} pts</div></div><div><div className="l">Miss</div><div className="v">keep {fmt0(stake)}</div></div><div><div className="l">In 5 years</div><div className="v gold">{s ? '~' + fmt0(projectCapped(stake, s.avg_return_10y, 5)) : 'pick a stock'}</div></div></div>
+      <div className="trio"><div><div className="l">Win</div><div className="v mint">{points} pts</div></div><div><div className="l">Miss</div><div className="v">keep {fmt0(stake)}</div></div><div><div className="l">In 5 years</div><div className="v gold">{s ? '~' + fmt0(projectSmart(stake, s.avg_return_10y, 5)) : 'pick a stock'}</div></div></div>
       <div style={{ fontWeight: 700, marginBottom: 6 }}>What does it buy?</div>
       <div className="chips">{TIERS.map((t, i) => <button key={t} className={'chip ' + (tier === i && !q ? 'on' : '')} onClick={() => { setTier(i); setQ(''); }}>{t}</button>)}</div>
       <input className="search" placeholder="Search tickers" value={q} onChange={e => setQ(e.target.value)} />
@@ -784,7 +784,7 @@ function StockPage({ ticker, d, gm, onClose }: { ticker: string; d: ReturnType<t
   const shares = held.reduce((t, p) => t + Number(p.shares), 0);
   const cost = held.reduce((t, p) => t + Number(p.stake), 0);
   const val = latest ? shares * latest : cost;
-  const curve = Array.from({ length: years + 1 }, (_, i) => projectCapped(100, s.avg_return_10y, i));
+  const curve = Array.from({ length: years + 1 }, (_, i) => projectSmart(100, s.avg_return_10y, i));
   const ai = at ?? years;
   return <section className="view">
     <div className="row"><button className="back" aria-label="Back" onClick={onClose}><Symbol name="arrowleft" size={20} /></button><span className={`tag t${s.tier}`}>{(TIER_TAG[s.tier] ?? '').split(' · ')[0]}</span></div>
@@ -810,10 +810,10 @@ function StockPage({ ticker, d, gm, onClose }: { ticker: string; d: ReturnType<t
       <div className="meta" style={{ marginTop: 4 }}>{fmt0(cost)} staked · now {fmt(val)} · <b className={val - cost >= 0 ? 'mint' : ''}>{val - cost >= 0 ? '+' : ''}{fmt(val - cost)}</b></div>
     </div>}
     <div className="gp-sec">If it keeps its 10-year average</div>
-    <div className="readout">$100 becomes ~<b className="mint"><Roll value={projectCapped(100, s.avg_return_10y, ai)} format={fmt0} /></b> after {ai} {ai === 1 ? 'year' : 'years'}</div>
+    <div className="readout">$100 becomes ~<b className="mint"><Roll value={projectSmart(100, s.avg_return_10y, ai)} format={fmt0} /></b> after {ai} {ai === 1 ? 'year' : 'years'}</div>
     <LineChart series={[{ color: 'var(--mint)', vals: curve, area: true }]} n={years + 1} active={ai} onActive={setAt} xLabels={['Now', `${years} yrs`]} label={`Projection of $100 in ${s.ticker} over ${years} years`} />
     <div className="chips">{[1, 5, 10, 15].map(y => <button key={y} className={'chip ' + (years === y ? 'on' : '')} onClick={() => { setYears(y); setAt(null); }}>{y} yr</button>)}</div>
-    <div className="disc">Hypothetical, using the approximate 10-year average annual return (projections cap growth at 20% a year; a hot decade does not compound forever) and the worst peak-to-trough drop. Past prices and returns do not predict future results. Investibet never recommends a stock; any pick can be backed with any stock on the board. Not advice.</div>
+    <div className="disc">Hypothetical. Projections shrink a hot decade's edge by half and fade the rest toward the market's long-run ~8%/yr, the way a fading-growth model would; nothing compounds at 70% forever. Worst drop is peak-to-trough. Past prices and returns do not predict future results. Investibet never recommends a stock; any pick can be backed with any stock on the board. Not advice.</div>
   </section>;
 }
 
@@ -844,8 +844,8 @@ function Owned({ d, gm, onStock }: { d: ReturnType<typeof useData>; gm: Record<s
   const ownedPts = [0]; const bookPts = [0]; let oc = 0, bc = 0;
   for (const p of chrono) { oc += Number(p.stake); bc += Number(p.stake) + counterfactualDelta(Number(p.stake), p.odds, p.status as 'won' | 'lost' | 'push' | 'void' | 'pending'); ownedPts.push(oc); bookPts.push(bc); }
   ownedPts.push(value); bookPts.push(bc);
-  const projAt = (y: number) => holdings.reduce((s, h) => s + projectCapped(h.value, h.stock?.avg_return_10y ?? 10, y), 0)
-    + pending.reduce((s, p) => s + projectCapped(Number(p.stake), d.stocks.find(x => x.ticker === p.ticker)?.avg_return_10y ?? 10, y), 0);
+  const projAt = (y: number) => holdings.reduce((s, h) => s + projectSmart(h.value, h.stock?.avg_return_10y ?? 10, y), 0)
+    + pending.reduce((s, p) => s + projectSmart(Number(p.stake), d.stocks.find(x => x.ticker === p.ticker)?.avg_return_10y ?? 10, y), 0);
   const FUT = 8;
   const future = Array.from({ length: FUT + 1 }, (_, k) => projAt((horizon * k) / FUT));
   const n = ownedPts.length + FUT;
@@ -893,7 +893,7 @@ function Owned({ d, gm, onStock }: { d: ReturnType<typeof useData>; gm: Record<s
         </div>
         <div className="chips">{HORIZONS.map(h => <button key={h} className={'chip slim ' + (horizon === h ? 'on' : '')} onClick={() => { setHorizon(h); setAt(null); }}>+{h} {h === 1 ? 'year' : 'years'}</button>)}</div>
         <div className="readout">{ptLabel}: {ai > ti && '~'}{mask(fmt0(aOwn))} {ai > ti && <span className="sub" style={{ display: 'inline' }}>at 10-yr averages</span>}</div>
-        <div className="disc" style={{ marginTop: 6 }}>Solid: what your picks put in, through today. Dashed: if it grew at your stocks' past 10-year averages, capped at 20% a year, on a squeezed scale so both ends fit. Tap to walk it. Hypothetical, never advice.</div>
+        <div className="disc" style={{ marginTop: 6 }}>Solid: what your picks put in, through today. Dashed: a desk-style projection, your stocks' past edge shrunk and faded toward the market's long-run ~8%/yr, on a squeezed scale so both ends fit. Tap to walk it. Hypothetical, never advice.</div>
         <div className="vsbook">
           <div className="vb-t">If this were a sportsbook</div>
           {keptNow > 0.005 ? <>
