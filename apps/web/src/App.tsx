@@ -108,34 +108,30 @@ function LineChart({ series, n, active, onActive, xLabels, label, fit }: {
   </svg>;
 }
 
-/* ---------- worth chart: solid gradient past, dashed future at 10-yr averages, flat book line ---------- */
-function WorthChart({ past, book, future, mode, active, onActive }: {
-  past: number[]; book: number[]; future: number[]; mode: 'owned' | 'book'; active: number; onActive: (i: number) => void;
+/* ---------- worth chart: one line, yours. Solid gradient past, dashed future, the end value named. ---------- */
+function WorthChart({ past, future, active, onActive, endLabel }: {
+  past: number[]; future: number[]; active: number; onActive: (i: number) => void; endLabel: string;
 }) {
   const uid = useId().replace(/[^a-zA-Z0-9]/g, '');
-  const W = 360, H = 170, T = 14, B = 14;
+  const W = 360, H = 170, T = 18, B = 12, R = 58;
   const comb = [...past, ...future.slice(1)];
-  const bookFlat = book.length ? book[book.length - 1] : 0;
-  const bookComb = [...book, ...future.slice(1).map(() => bookFlat)];
   const N = comb.length;
-  const used = mode === 'book' ? [...comb, ...bookComb] : comb;
-  const max = Math.max(1, ...used) * 1.08;
-  const x = (i: number) => (N > 1 ? (i * W) / (N - 1) : 0);
+  const max = Math.max(1, ...comb) * 1.1;
+  const x = (i: number) => (N > 1 ? (i * (W - R)) / (N - 1) : 0);
   const y = (v: number) => T + (1 - v / max) * (H - T - B);
   const pts = (vals: number[], from = 0) => vals.map((v, i) => `${x(i + from).toFixed(1)},${y(v).toFixed(1)}`).join(' ');
   const ti = past.length - 1; // today
-  const colW = W / Math.max(1, N - 1);
+  const colW = (W - R) / Math.max(1, N - 1);
   return <svg viewBox={`0 0 ${W} ${H}`} width="100%" role="img" aria-label="What you own, past and projected" style={{ display: 'block', touchAction: 'pan-y' }}>
     <defs><linearGradient id={`wg${uid}`} x1="0" y1="0" x2="1" y2="0">
       <stop offset="0" stopColor="var(--peri)" /><stop offset="1" stopColor="var(--mint)" />
     </linearGradient></defs>
     <polygon points={`${x(0)},${y(0)} ${pts(past)} ${x(ti)},${y(0)}`} fill="var(--mint)" opacity="0.07" />
-    {mode === 'book' && <polyline points={pts(bookComb)} fill="none" stroke="var(--coral)" strokeWidth="2" strokeDasharray="5 4" strokeLinejoin="round" opacity=".85" />}
-    {future.length > 1 && <polyline points={pts(future, ti)} fill="none" stroke="var(--mint)" strokeWidth="2.5" strokeDasharray="2 5" strokeLinecap="round" opacity=".7" />}
+    {future.length > 1 && <polyline points={pts(future, ti)} fill="none" stroke="var(--mint)" strokeWidth="2.5" strokeDasharray="2 6" strokeLinecap="round" opacity=".75" />}
     <polyline points={pts(past)} fill="none" stroke={`url(#wg${uid})`} strokeWidth="3" strokeLinejoin="round" strokeLinecap="round" />
     <circle cx={x(ti)} cy={y(past[ti])} r="5.5" fill="var(--mint)" stroke="#fff" strokeWidth="2.5" />
     <circle cx={x(active)} cy={y(comb[Math.min(active, N - 1)])} r="4.5" fill={active > ti ? 'var(--mint)' : 'var(--peri)'} stroke="#fff" strokeWidth="2" opacity={active === ti ? 0 : 1} />
-    {mode === 'book' && <circle cx={x(active)} cy={y(bookComb[Math.min(active, N - 1)])} r="4" fill="var(--coral)" stroke="#fff" strokeWidth="2" />}
+    <text x={x(N - 1) + 7} y={y(comb[N - 1]) + 4} fontSize="12.5" fontWeight="800" fill="var(--mint)">{endLabel}</text>
     {Array.from({ length: N }, (_, i) => <rect key={i} x={x(i) - colW / 2} y={0} width={colW} height={H} fill="transparent" onPointerDown={() => onActive(i)} onPointerEnter={() => onActive(i)} />)}
   </svg>;
 }
@@ -800,7 +796,7 @@ function StockPage({ ticker, d, gm, onClose }: { ticker: string; d: ReturnType<t
 const ALLOC = ['var(--mint)', 'var(--peri)', 'var(--gold)', '#E560B6', '#3FB6C9', '#8E8E93'];
 const HORIZONS = [1, 5, 10, 25];
 function Owned({ d, gm, onStock }: { d: ReturnType<typeof useData>; gm: Record<string, Game>; onStock: (t: string) => void }) {
-  const [q, setQ] = useState(''); const [view, setView] = useState<'owned' | 'book'>('owned'); const [at, setAt] = useState<number | null>(null);
+  const [q, setQ] = useState(''); const [at, setAt] = useState<number | null>(null);
   const [lane, setLane] = useState(0); const [horizon, setHorizon] = useState(5);
   const [hide, setHide] = useState(() => localStorage.getItem('ib_hide') === '1');
   const toggleHide = () => { localStorage.setItem('ib_hide', hide ? '0' : '1'); setHide(!hide); };
@@ -832,9 +828,8 @@ function Owned({ d, gm, onStock }: { d: ReturnType<typeof useData>; gm: Record<s
   const ai = Math.min(at ?? ti, n - 1);
   const futYears = ai > ti ? (horizon * (ai - ti)) / FUT : 0;
   const aOwn = ai <= ti ? ownedPts[ai] : future[ai - ti];
-  const aBook = ai <= ti ? bookPts[ai] : bc;
   const ptLabel = ai === 0 ? 'At the start' : ai === ti ? 'Today' : ai < ti ? `After pick ${ai}` : `In ~${futYears < 1 ? Math.round(futYears * 12) + ' months' : (Math.round(futYears * 10) / 10) + ' years'}`;
-  const diff = aOwn - aBook;
+  const keptNow = staked - bc;
 
   const query = q.trim().toLowerCase();
   const results = query ? d.stocks.filter(x => x.ticker.toLowerCase().includes(query) || x.name.toLowerCase().includes(query)).sort((a, b) => a.ticker.localeCompare(b.ticker)).slice(0, 20) : [];
@@ -862,19 +857,19 @@ function Owned({ d, gm, onStock }: { d: ReturnType<typeof useData>; gm: Record<s
     </> : <>
       {mine.length > 0 ? <>
         <div className="bleed">
-          <WorthChart past={ownedPts} book={bookPts} future={future} mode={view} active={ai} onActive={setAt} />
+          <WorthChart past={ownedPts} future={future} active={ai} onActive={setAt} endLabel={`≈${fmt0(future[FUT])}`} />
         </div>
-        <div className="chips" style={{ justifyContent: 'space-between' }}>
-          {HORIZONS.map(h => <button key={h} className={'chip slim ' + (horizon === h ? 'on' : '')} onClick={() => { setHorizon(h); setAt(null); }}>+{h}y</button>)}
-          <button className={'chip slim ' + (view === 'book' ? 'on' : '')} onClick={() => { setView(view === 'book' ? 'owned' : 'book'); }}>Vs a sportsbook</button>
+        <div className="chips">{HORIZONS.map(h => <button key={h} className={'chip slim ' + (horizon === h ? 'on' : '')} onClick={() => { setHorizon(h); setAt(null); }}>+{h} {h === 1 ? 'year' : 'years'}</button>)}</div>
+        <div className="readout">{ptLabel}: {ai > ti && '~'}{mask(fmt0(aOwn))} {ai > ti && <span className="sub" style={{ display: 'inline' }}>at 10-yr averages</span>}</div>
+        <div className="disc" style={{ marginTop: 6 }}>Solid: every locked pick, ending at today's value. Dashed: hypothetical growth at each holding's approximate 10-year average. Tap to walk the line. Past returns do not predict future results. Not advice.</div>
+        <div className="vsbook">
+          <div className="vb-t">Same stakes, two endings</div>
+          <div className="vb-row"><span className="vb-l">You own</span><div className="vb-track"><i className="vb-bar you" style={{ width: `${Math.max(4, (value / Math.max(value, bc, 1)) * 100)}%` }} /></div><span className="vb-v mint">{mask(fmt0(value))}</span></div>
+          <div className="vb-row"><span className="vb-l">A sportsbook</span><div className="vb-track"><i className="vb-bar book" style={{ width: `${Math.max(4, (bc / Math.max(value, bc, 1)) * 100)}%` }} /></div><span className="vb-v coral">{mask(fmt0(bc))}</span></div>
+          <div className="sub">{keptNow > 0.005 ? `A sportsbook would have kept ${fmt0(keptNow)} of your stakes by now. You invested them instead.`
+            : keptNow < -0.005 ? `Betting would be up ${fmt0(-keptNow)} so far. You own the stock either way.`
+            : 'Nothing settled yet. A missed pick here still buys the stock.'}</div>
         </div>
-        <div className="readout">{ptLabel}: {ai > ti && '~'}{mask(fmt0(aOwn))} {ai > ti && <span className="sub" style={{ display: 'inline' }}>at 10-yr averages</span>}
-          {view === 'book' && <div className="sub">{ai > ti ? `A sportsbook line stays flat: still ${mask(fmt0(aBook))}. Dashed mint is money that compounds.`
-            : diff >= 0 ? `A sportsbook would have kept ${fmt0(diff)} of this by now. You invested it instead.`
-            : `Betting would be up ${fmt0(-diff)} for now. You own the stock either way.`}</div>}
-        </div>
-        {view === 'book' && <div className="legend"><span><i className="dt" style={{ background: 'var(--mint)' }} />You own</span><span><i className="dt" style={{ background: 'var(--coral)' }} />At a sportsbook</span></div>}
-        <div className="disc">Solid line: every locked pick, ending at today's value. Dashed: hypothetical growth at each holding's approximate 10-year average. Past returns do not predict future results. Not advice.</div>
 
         {allocTotal > 0 && <div className="alloc" aria-hidden="true">
           {holdings.map((h, i) => <span key={h.ticker} style={{ width: `${(h.value / allocTotal) * 100}%`, background: ALLOC[Math.min(i, ALLOC.length - 1)] }} />)}
