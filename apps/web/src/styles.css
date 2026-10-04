@@ -5,6 +5,7 @@
   --coral:#E8503A;--coral2:rgba(232,80,58,.10);
   --gold:#C08A14;--gold2:rgba(192,138,20,.12);
   --peri:#6B7CF5;--peri2:rgba(107,124,245,.12);
+  --pill:#E3E5ED;
   --glass:rgba(255,255,255,.44);--glass-edge:rgba(255,255,255,.7);
   --glass-dark:rgba(23,27,46,.82);
   --wash-party:linear-gradient(160deg,rgba(243,187,255,.30),rgba(150,196,255,.14));
@@ -23,6 +24,7 @@ html{height:100%;scroll-padding-top:env(safe-area-inset-top,0px);-webkit-text-si
   --peri:#8B96FF;--peri2:rgba(139,150,255,.16);
   --wash-party:linear-gradient(160deg,rgba(248,196,255,.10),rgba(150,196,255,.05));
   --wash-calm:linear-gradient(180deg,rgba(150,196,255,.07),transparent);
+  --pill:#242938;
   --glass:rgba(20,23,32,.5);--glass-edge:rgba(255,255,255,.12);
   --glass-dark:rgba(8,10,16,.82);
   --float:0 10px 30px rgba(0,0,0,.5);
@@ -112,7 +114,7 @@ header{display:flex;align-items:center;justify-content:space-between;padding:18p
 .chev.open{transform:rotate(90deg)}
 .chev.down{transform:rotate(90deg);color:var(--peri)}
 .chev.down.open{transform:rotate(-90deg)}
-.tcol{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:2px 0 16px}
+.tcol{display:grid;grid-template-columns:1fr 1fr;gap:3px;padding:2px 0 16px}
 .tcol .th{font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--dim);text-align:center}
 .mpill.wide{min-height:50px;flex-direction:row;gap:8px}
 /* Game page: back arrow, centered matchup, markets */
@@ -201,11 +203,11 @@ header{display:flex;align-items:center;justify-content:space-between;padding:18p
 .readout .sub{font-size:12px;color:var(--muted);font-weight:400;margin-top:3px}
 .legend{display:flex;gap:16px;align-items:center;font-size:12px;color:var(--muted);margin-top:8px;flex-wrap:wrap}
 .legend .dt{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:5px}
-.mhead{display:grid;grid-template-columns:minmax(96px,1.1fr) repeat(3,1fr);gap:8px;font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--dim);text-align:center;margin:14px 0 2px}
+.mhead{display:grid;grid-template-columns:minmax(96px,1.1fr) repeat(3,1fr);gap:3px;font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--dim);text-align:center;margin:14px 0 2px}
 .mhead span:first-child{text-align:left}
-.mrow{display:grid;grid-template-columns:minmax(96px,1.1fr) repeat(3,1fr);gap:8px;align-items:stretch;margin:8px 0}
+.mrow{display:grid;grid-template-columns:minmax(96px,1.1fr) repeat(3,1fr);gap:3px;align-items:stretch;margin:3px 0}
 /* Team row, Hard Rock's: plain name, score chip in its own aligned slot, no logos or discs */
-.tname{display:flex;align-items:center;gap:8px;min-width:0;padding-right:2px}
+.tname{display:flex;align-items:center;gap:8px;min-width:0;padding-right:8px}
 .tname .nm2{flex:1;min-width:0;font-size:14px;font-weight:600;letter-spacing:-.01em;line-height:1.25}
 .scorechip{background:var(--bg3);border-radius:6px;padding:2px 7px;font-weight:800;font-size:12px;flex:none}
 .divider{display:flex;align-items:center;gap:8px;margin:18px 0 2px;font-size:12px;font-weight:600;color:var(--dim)}
@@ -213,10 +215,10 @@ header{display:flex;align-items:center;justify-content:space-between;padding:18p
 .divider .dot{width:8px;height:8px;border-radius:50%;background:var(--gold);animation:pulse 1.6s ease-out infinite}
 @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(192,138,20,.5)}100%{box-shadow:0 0 0 8px rgba(192,138,20,0)}}
 /* The pill is two numbers, Hard Rock's way: the line in ink, the price in bold accent */
-.mpill{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;min-height:54px;border-radius:11px;background:var(--bg3);border:1px solid transparent;padding:6px 4px;transition:transform .12s,background .12s,border-color .12s}
+.mpill{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;min-height:56px;border-radius:10px;background:var(--pill);border:1px solid transparent;padding:6px 4px;transition:transform .12s,background .12s,border-color .12s}
 .mpill:active{transform:scale(.96)}
-.mpill .ln{font-size:13px;font-weight:600;letter-spacing:-.01em}
-.mpill .pr{font-size:13px;font-weight:800;color:var(--peri);letter-spacing:-.01em}
+.mpill .ln{font-size:13px;font-weight:700;letter-spacing:-.01em}
+.mpill .pr{font-size:13px;font-weight:800;color:var(--mint);letter-spacing:-.01em}
 .mpill .sb{font-size:12px;color:var(--muted)}
 .mpill.lockout{opacity:1!important;color:var(--dim)}
 .mpill.sel{background:var(--mint);border-color:var(--mint);animation:popsel .3s cubic-bezier(.2,.9,.3,1.35)}
