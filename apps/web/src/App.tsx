@@ -309,10 +309,10 @@ function Shell({ session }: { session: Session }) {
       <span className="e">{fmt0(stake)} stake earns <b><Roll value={pts} /> pts</b></span>
     </button>}
     <nav ref={navRef}
-      onPointerDown={e => { setLensDrag(true); setLensI(idxFromX(e.clientX)); }}
+      onPointerDown={e => { navRef.current?.setPointerCapture(e.pointerId); setLensDrag(true); setLensI(idxFromX(e.clientX)); }}
       onPointerMove={e => { if (lensDrag) setLensI(idxFromX(e.clientX)); }}
-      onPointerUp={e => { if (lensDrag) { setLensDrag(false); go(NAV_ORDER[idxFromX(e.clientX)]); } }}
-      onPointerCancel={() => { setLensDrag(false); setLensI(NAV_ORDER.indexOf(tab)); }}>
+      onPointerUp={e => { setLensDrag(false); go(NAV_ORDER[idxFromX(e.clientX)]); }}
+      onPointerCancel={e => { setLensDrag(false); go(NAV_ORDER[idxFromX(e.clientX)]); }}>
       <i className={'lens' + (lensDrag ? ' drag' : '')} style={{ left: `calc(5px + ${lensI} * ((100% - 10px) / 4))` }} aria-hidden="true">
         <span className="mag" style={{ left: `${-lensI * 100}%` }}>
           {TABS.map(([k, l, ic]) => <span className="mg" key={k}><Symbol name={ic} size={22} />{l}</span>)}
