@@ -324,17 +324,19 @@ header{display:flex;align-items:center;justify-content:space-between;padding:18p
 nav{position:fixed;bottom:calc(10px + env(safe-area-inset-bottom,0px));left:12px;right:12px;max-width:496px;margin:0 auto;background:linear-gradient(180deg,rgba(255,255,255,.45),rgba(255,255,255,0) 48%),var(--glass);backdrop-filter:blur(26px) saturate(190%);-webkit-backdrop-filter:blur(26px) saturate(190%);border:1px solid var(--glass-edge);border-radius:999px;display:grid;grid-template-columns:repeat(4,1fr);padding:5px;box-shadow:0 10px 32px rgba(23,27,46,.18),inset 0 1.5px 0 rgba(255,255,255,.9),inset 0 -1px 2px rgba(23,27,46,.05);z-index:10;position:fixed;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
 /* The Liquid Glass lens: transparent magnifier. It carries a scaled clone of the tab strip,
    clipped to the capsule, so icons and labels genuinely zoom and slide under the glass. */
-nav .lens{position:absolute;top:5px;bottom:5px;width:calc((100% - 10px) / 4);border-radius:999px;overflow:hidden;background:var(--pill);box-shadow:0 2px 8px rgba(23,27,46,.1),inset 0 1px 0 rgba(255,255,255,.7);transition:left .38s cubic-bezier(.25,1.12,.3,1),transform .25s cubic-bezier(.25,1.12,.3,1);will-change:left,transform;z-index:2;pointer-events:none;user-select:none;-webkit-user-select:none}
+nav .lens{position:absolute;top:5px;bottom:5px;width:calc((100% - 10px) / 4);border-radius:999px;overflow:hidden;background:var(--pill);box-shadow:0 2px 8px rgba(23,27,46,.1),inset 0 1px 0 rgba(255,255,255,.7);transition:left .26s cubic-bezier(.3,1.08,.35,1),transform .2s cubic-bezier(.3,1.08,.35,1);will-change:left,transform;z-index:2;pointer-events:none;user-select:none;-webkit-user-select:none}
 nav .lens:after{content:"";position:absolute;inset:2px;border-radius:999px;background:radial-gradient(60% 42% at 30% 14%,rgba(255,255,255,.7),transparent 70%);opacity:.35;pointer-events:none;z-index:3}
-nav .lens .mag{position:absolute;top:0;bottom:0;width:400%;display:grid;grid-template-columns:repeat(4,1fr);transition:left .38s cubic-bezier(.25,1.12,.3,1);will-change:left}
-nav .lens .mg{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;font-size:11px;font-weight:800;color:var(--peri);transform:scale(1.04);transition:transform .25s cubic-bezier(.25,1.12,.3,1)}
+nav .lens .mag{position:absolute;top:0;bottom:0;width:400%;display:grid;grid-template-columns:repeat(4,1fr);transition:left .26s cubic-bezier(.3,1.08,.35,1);will-change:left}
+nav .lens .mg{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;font-size:11px;font-weight:800;color:var(--mint);transform:scale(1.04);transition:transform .2s cubic-bezier(.3,1.08,.35,1)}
 nav .lens.drag{transform:scale(1.07) translateY(-2px)}
 nav .lens.drag .mg{transform:scale(1.1)}
 nav .lens .mg svg{width:22px;height:22px}
 nav button{padding:6px 2px;min-height:52px;border-radius:999px;font-size:11px;font-weight:700;color:var(--ink);display:flex;flex-direction:column;align-items:center;gap:3px;transition:transform .15s}
 nav button:active{transform:scale(.92)}
 nav button{position:relative;z-index:1}
-nav button.on{color:var(--peri)}nav svg{width:22px;height:22px}
+nav button.on{color:var(--mint)}nav svg{width:22px;height:22px}
+nav svg *{stroke-width:2.4}
+nav .lens .mg svg *{stroke-width:2.6}
 .avatar{position:relative;display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:linear-gradient(135deg,#9F8CF5,#5AB8F5);color:#fff;font-size:9px;font-weight:800;letter-spacing:.02em}
 .avatar .dot{position:absolute;top:-2px;right:-2px;width:8px;height:8px;border-radius:50%;background:var(--coral);border:1.5px solid #fff}
 .avatar.big{width:52px;height:52px;font-size:18px}
