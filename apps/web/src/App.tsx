@@ -434,11 +434,11 @@ function Home({ d, uid, cart, onToggle, onCup, onStock, openId, setOpenId }: { d
       </button>;
     };
     const sec = (key: string, title: string, heads: [string, string], body: JSX.Element) => <div className="msec">
-      <button className="msec-h" onClick={() => setSecOpen(s => ({ ...s, [key]: !(s[key] ?? true) }))}>
-        <span className="t">{title}</span><span className="stackb">Stack</span>
-        <span className={'chev' + ((secOpen[key] ?? true) ? ' open' : '')}><Symbol name="chevron" size={16} /></span>
+      <button className="msec-h" onClick={() => setSecOpen(s => ({ ...s, [key]: !(s[key] ?? false) }))}>
+        <span className="t">{title}</span>
+        <span className={'chev down' + ((secOpen[key] ?? false) ? ' open' : '')}><Symbol name="chevron" size={16} /></span>
       </button>
-      {(secOpen[key] ?? true) && <div className="tcol"><div className="th">{heads[0]}</div><div className="th">{heads[1]}</div>{body}</div>}
+      {(secOpen[key] ?? false) && <div className="tcol"><div className="th">{heads[0]}</div><div className="th">{heads[1]}</div>{body}</div>}
     </div>;
     return <section className="view">
       <button className="back" aria-label="Back to the board" onClick={() => setOpenId(null)}><Symbol name="arrowleft" size={20} /></button>
@@ -600,7 +600,7 @@ function Slip({ d, legs, stake, setStake, onRemove, onClose, onLocked, say, brok
         <div><div className="l">Stake</div><div className="sx">{'$' + (raw === '' ? '0' : raw)}</div></div>
         <div><div className="l">Earns</div><div className="v mint">{points} pts</div><div className="small" style={{ marginTop: 2 }}>plus the stock, win or miss</div></div>
       </div>
-      <div className="disc" style={{ marginTop: 6 }}>Points are the odds on a flat $100 basis: −105 earns 95 pts, +170 earns 170. Stake size never changes points. Streaks of 3 and 5 multiply them.</div>
+      <div className="disc" style={{ marginTop: 6 }}>Hit the pick and the points are yours, same at any stake. Streaks of 3 and 5 multiply them.</div>
       <div className="quickadd">{[5, 10, 25].map(v => <button key={v} onClick={() => add(v)}>+${v}</button>)}</div>
       <div className="numpad">{['1', '2', '3', '4', '5', '6', '7', '8', '9', '.', '0', '<'].map(k =>
         <button key={k} aria-label={k === '<' ? 'Delete' : k} onClick={() => push(k)}>{k === '<' ? <Symbol name="backspace" size={22} /> : k}</button>)}</div>
