@@ -28,9 +28,12 @@ html{height:100%;scroll-padding-top:env(safe-area-inset-top,0px);-webkit-text-si
   --float:0 10px 30px rgba(0,0,0,.5);
 }
 :root[data-theme="dark"] #root:before{background:radial-gradient(70% 240px at 50% -60px,rgba(248,196,255,.1),rgba(150,196,255,.05) 55%,transparent 75%)}
-:root[data-theme="dark"] .btn{color:#0D0F14}
+:root[data-theme="dark"] .btn:not(.ghost):not(.danger){color:#0D0F14}
 :root[data-theme="dark"] nav{box-shadow:0 10px 32px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.08)}
-:root[data-theme="dark"] nav button.on{background:rgba(255,255,255,.12);box-shadow:none}
+:root[data-theme="dark"] nav{background:linear-gradient(180deg,rgba(255,255,255,.08),rgba(255,255,255,0) 48%),var(--glass)}
+:root[data-theme="dark"] nav .lens{background:rgba(255,255,255,.14);box-shadow:0 2px 10px rgba(0,0,0,.4),inset 0 1px 0 rgba(255,255,255,.22)}
+:root[data-theme="dark"] nav .lens:after{opacity:.2}
+:root[data-theme="dark"] nav .lens.drag{background:rgba(255,255,255,.22)}
 :root[data-theme="dark"] .seg button.on,:root[data-theme="dark"] .hzp button.on{background:#2E3340;color:var(--ink);box-shadow:none}
 :root[data-theme="dark"] .hzp{background:rgba(255,255,255,.07)}
 :root[data-theme="dark"] .ss-num{background:rgba(255,255,255,.12)}
@@ -317,10 +320,15 @@ header{display:flex;align-items:center;justify-content:space-between;padding:18p
 .flame{display:inline-flex;align-items:center;gap:3px;font-size:12px;color:var(--gold);font-weight:700;vertical-align:middle}
 .ladder{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}.ladder div{background:var(--bg3);border-radius:12px;padding:10px;text-align:center}.ladder .l{font-size:12px;color:var(--muted)}.ladder .v{font-weight:700;color:var(--mint)}
 /* Floating pill tab bar: liquid glass capsule. Saturated blur, specular top edge, soft drop. */
-nav{position:fixed;bottom:calc(10px + env(safe-area-inset-bottom,0px));left:12px;right:12px;max-width:496px;margin:0 auto;background:var(--glass);backdrop-filter:blur(24px) saturate(180%);-webkit-backdrop-filter:blur(24px) saturate(180%);border:1px solid var(--glass-edge);border-radius:999px;display:grid;grid-template-columns:repeat(4,1fr);padding:5px;box-shadow:0 10px 32px rgba(23,27,46,.18),inset 0 1px 0 rgba(255,255,255,.9),inset 0 -1px 1px rgba(23,27,46,.04);z-index:10}
+nav{position:fixed;bottom:calc(10px + env(safe-area-inset-bottom,0px));left:12px;right:12px;max-width:496px;margin:0 auto;background:linear-gradient(180deg,rgba(255,255,255,.45),rgba(255,255,255,0) 48%),var(--glass);backdrop-filter:blur(26px) saturate(190%);-webkit-backdrop-filter:blur(26px) saturate(190%);border:1px solid var(--glass-edge);border-radius:999px;display:grid;grid-template-columns:repeat(4,1fr);padding:5px;box-shadow:0 10px 32px rgba(23,27,46,.18),inset 0 1.5px 0 rgba(255,255,255,.9),inset 0 -1px 2px rgba(23,27,46,.05);z-index:10;position:fixed;touch-action:none}
+/* The Liquid Glass lens: one floating highlight that springs between tabs and follows the thumb */
+nav .lens{position:absolute;top:5px;bottom:5px;width:calc(25% - 10px);border-radius:999px;background:rgba(255,255,255,.82);box-shadow:0 2px 10px rgba(23,27,46,.16),inset 0 1.5px 0 rgba(255,255,255,.95),inset 0 -1px 2px rgba(23,27,46,.08);transition:left .45s cubic-bezier(.3,1.5,.4,1),transform .22s cubic-bezier(.2,.9,.3,1.3),background .2s;will-change:left,transform;z-index:0}
+nav .lens:after{content:"";position:absolute;inset:2px;border-radius:999px;background:radial-gradient(60% 45% at 30% 16%,rgba(255,255,255,.95),transparent 70%);opacity:.75;pointer-events:none}
+nav .lens.drag{transform:scale(1.22) translateY(-3px);background:rgba(255,255,255,.95)}
 nav button{padding:6px 2px;min-height:52px;border-radius:999px;font-size:11px;font-weight:600;color:var(--muted);display:flex;flex-direction:column;align-items:center;gap:3px;transition:transform .15s}
 nav button:active{transform:scale(.92)}
-nav button.on{background:rgba(255,255,255,.85);color:var(--ink);box-shadow:0 2px 8px rgba(23,27,46,.1)}nav svg{width:22px;height:22px}
+nav button{position:relative;z-index:1}
+nav button.on{color:var(--ink)}nav svg{width:22px;height:22px}
 .avatar{position:relative;display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:linear-gradient(135deg,#9F8CF5,#5AB8F5);color:#fff;font-size:9px;font-weight:800;letter-spacing:.02em}
 .avatar .dot{position:absolute;top:-2px;right:-2px;width:8px;height:8px;border-radius:50%;background:var(--coral);border:1.5px solid #fff}
 .avatar.big{width:52px;height:52px;font-size:18px}

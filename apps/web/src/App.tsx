@@ -273,6 +273,14 @@ function Shell({ session }: { session: Session }) {
   const [toast, setToast] = useState(''); const say = (m: string) => { setToast(m); setTimeout(() => setToast(''), 1800); };
   const gm = useMemo(() => Object.fromEntries(d.games.map(g => [g.id, g])), [d.games]);
 
+  // Liquid Glass lens: the nav highlight detaches under the thumb, springs to where you let go
+  const NAV_ORDER: Tab[] = ['home', 'picks', 'owned', 'profile'];
+  const navRef = useRef<HTMLElement | null>(null);
+  const [lensI, setLensI] = useState(0); const [lensDrag, setLensDrag] = useState(false);
+  useEffect(() => { setLensI(NAV_ORDER.indexOf(tab)); }, [tab]); // eslint-disable-line
+  const idxFromX = (x: number) => { const r = navRef.current?.getBoundingClientRect(); if (!r) return lensI; return Math.max(0, Math.min(3, Math.floor(((x - r.left) / r.width) * 4))); };
+  const go = (t: Tab) => { setStockOpen(null); setTab(t); scrollTo(0, 0); };
+
   const toggleLeg = (game: Game, line: Line) => {
     const k = legKey(line);
     if (cart.some(x => legKey(x.line) === k)) {
@@ -300,9 +308,14 @@ function Shell({ session }: { session: Session }) {
       <span className="n" key={cart.length}>{cart.length} {cart.length === 1 ? 'pick' : 'picks'}</span>
       <span className="e">{fmt0(stake)} stake earns <b><Roll value={pts} /> pts</b></span>
     </button>}
-    <nav>
-      {TABS.map(([k, l, ic]) => <button key={k} className={tab === k && !stockOpen ? 'on' : ''} aria-label={l} onClick={() => { setStockOpen(null); setTab(k); scrollTo(0, 0); }}><Symbol name={ic} size={22} />{l}</button>)}
-      <button className={tab === 'profile' && !stockOpen ? 'on' : ''} aria-label="Profile" onClick={() => { setStockOpen(null); setTab('profile'); scrollTo(0, 0); }}>
+    <nav ref={navRef}
+      onPointerDown={e => { setLensDrag(true); setLensI(idxFromX(e.clientX)); }}
+      onPointerMove={e => { if (lensDrag) setLensI(idxFromX(e.clientX)); }}
+      onPointerUp={e => { if (lensDrag) { setLensDrag(false); go(NAV_ORDER[idxFromX(e.clientX)]); } }}
+      onPointerCancel={() => { setLensDrag(false); setLensI(NAV_ORDER.indexOf(tab)); }}>
+      <i className={'lens' + (lensDrag ? ' drag' : '')} style={{ left: `calc(${lensI * 25}% + 5px)` }} aria-hidden="true" />
+      {TABS.map(([k, l, ic]) => <button key={k} className={tab === k && !stockOpen ? 'on' : ''} aria-label={l} onClick={() => go(k)}><Symbol name={ic} size={22} />{l}</button>)}
+      <button className={tab === 'profile' && !stockOpen ? 'on' : ''} aria-label="Profile" onClick={() => go('profile')}>
         <span className="avatar">{initialsOf(d.profile?.display_name ?? 'You')}{!d.broker?.connected && <i className="dot" />}</span>Profile
       </button>
     </nav>
