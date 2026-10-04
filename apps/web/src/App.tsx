@@ -82,9 +82,9 @@ function useHistory(ticker: string | null) {
 const thin = (a: Hist, max = 110): Hist => a.length <= max ? a : a.filter((_, i) => i % Math.ceil(a.length / max) === 0 || i === a.length - 1);
 
 /* ---------- line chart: inline SVG, one axis, 2px lines, tap a column to read the values ---------- */
-function LineChart({ series, n, active, onActive, xLabels, label, fit }: {
+function LineChart({ series, n, active, onActive, onRelease, cursor, xLabels, label, fit }: {
   series: { color: string; vals: number[]; dash?: boolean; area?: boolean }[]; n: number;
-  active: number; onActive: (i: number) => void; xLabels: [string, string]; label: string; fit?: boolean;
+  active: number; onActive: (i: number) => void; onRelease?: () => void; cursor?: boolean; xLabels: [string, string]; label: string; fit?: boolean;
 }) {
   const W = 340, H = 150, L = 8, R = 8, T = 12, B = 22;
   const all = series.flatMap(s => s.vals);
@@ -102,8 +102,11 @@ function LineChart({ series, n, active, onActive, xLabels, label, fit }: {
   return <svg viewBox={`0 0 ${W} ${H}`} width="100%" role="img" aria-label={label} style={{ display: 'block', touchAction: 'pan-y' }}
     onTouchStart={e => onActive(pickIdx(e.touches[0].clientX, e.currentTarget))}
     onTouchMove={e => onActive(pickIdx(e.touches[0].clientX, e.currentTarget))}
+    onTouchEnd={() => onRelease?.()} onTouchCancel={() => onRelease?.()}
     onMouseDown={e => onActive(pickIdx(e.clientX, e.currentTarget))}
-    onMouseMove={e => { if (e.buttons === 1) onActive(pickIdx(e.clientX, e.currentTarget)); }}>
+    onMouseMove={e => { if (e.buttons === 1) onActive(pickIdx(e.clientX, e.currentTarget)); }}
+    onMouseUp={() => onRelease?.()} onMouseLeave={() => onRelease?.()}>
+    {cursor && <line x1={x(active)} x2={x(active)} y1={4} y2={H - 4} stroke="var(--dim)" strokeWidth="1.25" opacity=".7" />}
     {[0.25, 0.5, 0.75].map(f => <line key={f} x1={L} x2={W - R} y1={T + f * (H - T - B)} y2={T + f * (H - T - B)} stroke="var(--line)" strokeWidth="1" />)}
     {!fit && <line x1={L} x2={W - R} y1={base} y2={base} stroke="var(--line)" strokeWidth="1.5" />}
     {series.map((s, si) => <g key={si}>
@@ -117,8 +120,8 @@ function LineChart({ series, n, active, onActive, xLabels, label, fit }: {
 }
 
 /* ---------- worth chart: one line, yours. Solid gradient past, dashed future, the end value named. ---------- */
-function WorthChart({ past, future, active, onActive, endLabel }: {
-  past: number[]; future: number[]; active: number; onActive: (i: number) => void; endLabel: string;
+function WorthChart({ past, future, active, onActive, onRelease, cursor, endLabel }: {
+  past: number[]; future: number[]; active: number; onActive: (i: number) => void; onRelease?: () => void; cursor?: boolean; endLabel: string;
 }) {
   const uid = useId().replace(/[^a-zA-Z0-9]/g, '');
   const W = 360, H = 170, T = 18, B = 12, R = 12;
@@ -142,8 +145,11 @@ function WorthChart({ past, future, active, onActive, endLabel }: {
   return <svg viewBox={`0 0 ${W} ${H}`} width="100%" role="img" aria-label="What you own, past and projected" style={{ display: 'block', touchAction: 'pan-y' }}
     onTouchStart={e => onActive(pickIdx(e.touches[0].clientX, e.currentTarget))}
     onTouchMove={e => onActive(pickIdx(e.touches[0].clientX, e.currentTarget))}
+    onTouchEnd={() => onRelease?.()} onTouchCancel={() => onRelease?.()}
     onMouseDown={e => onActive(pickIdx(e.clientX, e.currentTarget))}
-    onMouseMove={e => { if (e.buttons === 1) onActive(pickIdx(e.clientX, e.currentTarget)); }}>
+    onMouseMove={e => { if (e.buttons === 1) onActive(pickIdx(e.clientX, e.currentTarget)); }}
+    onMouseUp={() => onRelease?.()} onMouseLeave={() => onRelease?.()}>
+    {cursor && <line x1={x(active)} x2={x(active)} y1={4} y2={H - 4} stroke="var(--dim)" strokeWidth="1.25" opacity=".7" />}
     <defs><linearGradient id={`wg${uid}`} x1="0" y1="0" x2="1" y2="0">
       <stop offset="0" stopColor="var(--peri)" /><stop offset="1" stopColor="var(--mint)" />
     </linearGradient></defs>
@@ -985,7 +991,7 @@ function StockPage({ ticker, d, gm, onClose }: { ticker: string; d: ReturnType<t
       <span>· {scrubbing ? dateLbl(slice![pai][0]) : rangeLabel.toLowerCase()}</span>
     </div>}
     {haveChart ? <>
-      <LineChart fit series={[{ color: up ? 'var(--mint)' : 'var(--coral)', vals: priceVals, area: true }]} n={priceVals.length} active={pai} onActive={setPat}
+      <LineChart fit series={[{ color: up ? 'var(--mint)' : 'var(--coral)', vals: priceVals, area: true }]} n={priceVals.length} active={pai} onActive={setPat} onRelease={() => setPat(null)} cursor={pat != null}
         xLabels={[dateLbl(slice![0][0]), 'Now']} label={`${s.ticker} price, ${rangeLabel.toLowerCase()}`} />
       <div className="chips">{RANGES.map(([l], i) => <button key={l} className={'chip ' + (range === i ? 'on' : '')} onClick={() => { setRange(i); setPat(null); }}>{l}</button>)}</div>
     </> : failed ? <div className="card calm"><div style={{ fontWeight: 700 }}>The price chart is warming up</div><p className="hint" style={{ margin: '6px 0 0' }}>History for {s.ticker} appears once the engine serves it. Everything below is live.</p></div>
@@ -1007,7 +1013,7 @@ function StockPage({ ticker, d, gm, onClose }: { ticker: string; d: ReturnType<t
     </>}
     <div className="gp-sec">If it keeps its 10-year average</div>
     <div className="readout">$100 becomes ~<b className="mint"><Roll value={projectSmart(100, s.avg_return_10y, ai)} format={fmt0} /></b> after {ai} {ai === 1 ? 'year' : 'years'}</div>
-    <LineChart series={[{ color: 'var(--mint)', vals: curve, area: true }]} n={years + 1} active={ai} onActive={setAt} xLabels={['Now', `${years} yrs`]} label={`Projection of $100 in ${s.ticker} over ${years} years`} />
+    <LineChart series={[{ color: 'var(--mint)', vals: curve, area: true }]} n={years + 1} active={ai} onActive={setAt} onRelease={() => setAt(null)} cursor={at != null} xLabels={['Now', `${years} yrs`]} label={`Projection of $100 in ${s.ticker} over ${years} years`} />
     <div className="chips">{[1, 5, 10, 15].map(y => <button key={y} className={'chip ' + (years === y ? 'on' : '')} onClick={() => { setYears(y); setAt(null); }}>{y} yr</button>)}</div>
     <div className="disc">Hypothetical. Projections shrink a hot decade's edge by half and fade the rest toward the market's long-run ~8%/yr, the way a fading-growth model would; nothing compounds at 70% forever. Worst drop is peak-to-trough. Past prices and returns do not predict future results. Investibet never recommends a stock; any pick can be backed with any stock on the board. Not advice.</div>
   </section>;
@@ -1073,7 +1079,7 @@ function Owned({ d, gm, onStock }: { d: ReturnType<typeof useData>; gm: Record<s
     </div>
     {mine.length > 0 ? <>
         <div className="bleed">
-          <WorthChart past={ownedPts} future={future} active={ai} onActive={setAt} endLabel={`≈${mask(fmt0(future[FUT]))}`} />
+          <WorthChart past={ownedPts} future={future} active={ai} onActive={setAt} onRelease={() => setAt(null)} cursor={at != null} endLabel={`≈${mask(fmt0(future[FUT]))}`} />
         </div>
         <div className="chips">{HORIZONS.map(h => <button key={h} className={'chip slim ' + (horizon === h ? 'on' : '')} onClick={() => { setHorizon(h); setAt(null); }}>+{h} {h === 1 ? 'year' : 'years'}</button>)}</div>
         <div className="readout">{ptLabel}: {ai > ti && '~'}{mask(fmt0(aOwn))} {ai > ti && <span className="sub" style={{ display: 'inline' }}>at 10-yr averages</span>}</div>
