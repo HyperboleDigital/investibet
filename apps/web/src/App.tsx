@@ -988,7 +988,6 @@ function Owned({ d, gm, onStock }: { d: ReturnType<typeof useData>; gm: Record<s
   const pendingPicks = mine.filter(p => p.status === 'pending');
   const lostStake = lostPicks.reduce((s, p) => s + Number(p.stake), 0);
   const lostVal = lostPicks.reduce((s, p) => s + (p.shares && d.prices[p.ticker] ? Number(p.shares) * d.prices[p.ticker] : Number(p.stake)), 0);
-  const wonPay = wonPicks.reduce((s, p) => s + counterfactualDelta(Number(p.stake), p.odds, 'won'), 0);
   const wonPts = Math.round(wonPicks.reduce((s, p) => s + Number(p.points), 0));
 
   const query = q.trim().toLowerCase();
@@ -1033,12 +1032,12 @@ function Owned({ d, gm, onStock }: { d: ReturnType<typeof useData>; gm: Record<s
             <div className="vb-cell you">
               <div className="l">Invested instead</div>
               <div className="v">{mask(fmt0(staked))}</div>
-              <div className="s">worth {mask(fmt0(value))} today, all still yours</div>
+              <div className="s">{movePct >= 0 ? '+' : ''}{movePct.toFixed(1)}% so far · ~{mask(fmt0(projAt(5)))} in 5 years</div>
             </div>
           </div>
           {(lostPicks.length > 0 || wonPicks.length > 0 || pendingPicks.length > 0) && <div className="vb-rows">
             {lostPicks.length > 0 && <div className="vb-li"><b>{lostPicks.length} missed</b> · a book keeps <b className="coral">{fmt0(lostStake)}</b> · here you own <b className="mint">{fmt0(lostVal)}</b> of that stock</div>}
-            {wonPicks.length > 0 && <div className="vb-li"><b>{wonPicks.length} won</b> · a book pays {fmt0(wonPay)} cash · here: <b className="mint">{wonPts} pts</b> toward the pot, and the stock stays</div>}
+            {wonPicks.length > 0 && <div className="vb-li"><b>{wonPicks.length} won</b> · <b className="mint">{wonPts} pts</b> toward the pot · the stock stays invested and growing</div>}
             {pendingPicks.length > 0 && <div className="vb-li"><b>{pendingPicks.length} pending</b> · {fmt0(pendingPicks.reduce((s, p) => s + Number(p.stake), 0))} riding either way</div>}
           </div>}
         </div>
