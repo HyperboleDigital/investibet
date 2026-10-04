@@ -5,7 +5,7 @@ import Symbol from './Symbol';
 import { implied, basePoints, potSplit, projectSmart, marketOpen, stackOdds, stackPoints, bookValue, counterfactualDelta } from '@investibet/core';
 
 /* ---------- types ---------- */
-type Game = { id: string; sport_key: string; league: string; home: string; away: string; commence_time: string; completed: boolean; home_score: number | null; away_score: number | null; period?: number | null; clock?: string | null; last_play?: string | null };
+type Game = { id: string; sport_key: string; league: string; home: string; away: string; commence_time: string; completed: boolean; home_score: number | null; away_score: number | null; period?: number | null; clock?: string | null; last_play?: string | null; down_distance?: string | null };
 type Line = { game_id: string; market: string; selection: string; point: number | null; price: number; fetched_at?: string | null };
 type TeamInfo = { abbreviation: string; short_name: string; ui_color: string | null };
 type Pick = { id: string; game_id: string; market: string; selection: string; point: number | null; odds: number; stake: number; ticker: string; locked_at: string; fill_price: number | null; shares: number | null; filled_at: string | null; status: string; points: number; counted: boolean; live?: boolean };
@@ -756,6 +756,7 @@ function ScoreBand({ g, teams, state, onEvent }: { g: Game; teams: Record<string
       {state === 'live' ? <span className="livetag"><Symbol name="play" size={11} />{periodLabel(g)}</span> : <span className="ss-fin">Final</span>}
       <span className="ss-side"><span className="ss-num">{g.home_score ?? 0}</span>{ab(g.home)}</span>
     </div>
+    {state === 'live' && g.down_distance && <div className="ss-dd">{g.down_distance}</div>}
     {state === 'live' && g.last_play && <div className="ss-play"><Symbol name="live" size={13} /><span>{g.last_play}</span></div>}
     {onEvent && <button className="ss-go" onClick={e => { e.stopPropagation(); onEvent(); }}><Symbol name="lines" size={14} />Go to game<Symbol name="chevron" size={12} /></button>}
   </div>;
@@ -796,10 +797,10 @@ function Picks({ d, gm, say, onEvent }: { d: ReturnType<typeof useData>; gm: Rec
         const val = p.shares && d.prices[p.ticker] ? Number(p.shares) * d.prices[p.ticker] : null;
         return <div key={p.id} role="button" tabIndex={0} className={'pick tap ' + (won ? 'won' : p.status === 'lost' ? 'lost' : '')} onClick={() => setSelId(p.id)}>
           {won && <WonBand />}
-          <div className="row"><div><div className="side">{legLabel(p)} <span className="odds-acc">{oddsTxt(p.odds)}</span></div>
+          <div className="row" style={{ alignItems: 'flex-start' }}><div style={{ minWidth: 0 }}><div className="side">{legLabel(p)}</div>
             <div className="eyebrow">{MARKET_LABEL[p.market] ?? p.market} · to hit</div>
             {!live && <div className="meta">{g.away} @ {g.home}</div>}</div>
-            {!won && !live && statusChip(p, live)}</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 'none' }}><span className="odds-acc" style={{ fontSize: 17 }}>{oddsTxt(p.odds)}</span>{!won && !live && statusChip(p, live)}</div></div>
           <div className="se"><div><div className="l">Stake</div><div className="v">{fmt0(Number(p.stake))}</div></div><div><div className="l">Earns</div><div className="v">{earnsTxt(p)}</div></div></div>
           {live ? <ScoreBand g={g} teams={d.teams} state="live" onEvent={() => onEvent(g.id)} />
             : won && g.completed ? <ScoreStrip g={g} teams={d.teams} />
@@ -842,8 +843,9 @@ function PickSheet({ p, g, d, say, onClose, onEvent }: { p: Pick | null; g: Game
       <div className="se"><div><div className="l">Stake</div><div className="v">{fmt0(Number(p.stake))}</div></div><div><div className="l">Earns</div><div className="v">{earnsTxt(p)}</div></div></div>
       {g.completed && <ScoreStrip g={g} teams={d.teams} />}
     </div> : <>
-      <div className="row"><div><div className="side" style={{ fontSize: 20 }}>{legLabel(p)} <span className="odds-acc">{oddsTxt(p.odds)}</span></div>
-        <div className="eyebrow">{MARKET_LABEL[p.market] ?? p.market} · to hit</div></div>{statusChip(p, live)}</div>
+      <div className="row" style={{ alignItems: 'flex-start' }}><div style={{ minWidth: 0 }}><div className="side" style={{ fontSize: 20 }}>{legLabel(p)}</div>
+        <div className="eyebrow">{MARKET_LABEL[p.market] ?? p.market} · to hit</div></div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 'none' }}><span className="odds-acc" style={{ fontSize: 18 }}>{oddsTxt(p.odds)}</span>{statusChip(p, live)}</div></div>
       <div className="meta" style={{ marginTop: 6 }}>{g.away} @ {g.home}</div>
       <div className="kick"><Symbol name="calendar" size={13} />{g.completed ? 'Final' : live ? <b>In play</b> : `${day}, ${time}`}<span>· {g.league}</span></div>
       <div className="se"><div><div className="l">Stake</div><div className="v">{fmt0(Number(p.stake))}</div></div><div><div className="l">Earns</div><div className="v">{earnsTxt(p)}</div></div></div>
