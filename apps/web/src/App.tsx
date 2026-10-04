@@ -313,7 +313,12 @@ function Shell({ session }: { session: Session }) {
       onPointerMove={e => { if (lensDrag) setLensI(idxFromX(e.clientX)); }}
       onPointerUp={e => { if (lensDrag) { setLensDrag(false); go(NAV_ORDER[idxFromX(e.clientX)]); } }}
       onPointerCancel={() => { setLensDrag(false); setLensI(NAV_ORDER.indexOf(tab)); }}>
-      <i className={'lens' + (lensDrag ? ' drag' : '')} style={{ left: `calc(${lensI * 25}% + 5px)` }} aria-hidden="true" />
+      <i className={'lens' + (lensDrag ? ' drag' : '')} style={{ left: `calc(${lensI * 25}% + 5px)` }} aria-hidden="true">
+        <span className="mag" style={{ left: `calc(${-lensI} * (100% + 10px))` }}>
+          {TABS.map(([k, l, ic]) => <span className="mg" key={k}><Symbol name={ic} size={22} />{l}</span>)}
+          <span className="mg"><span className="avatar">{initialsOf(d.profile?.display_name ?? 'You')}</span>Profile</span>
+        </span>
+      </i>
       {TABS.map(([k, l, ic]) => <button key={k} className={tab === k && !stockOpen ? 'on' : ''} aria-label={l} onClick={() => go(k)}><Symbol name={ic} size={22} />{l}</button>)}
       <button className={tab === 'profile' && !stockOpen ? 'on' : ''} aria-label="Profile" onClick={() => go('profile')}>
         <span className="avatar">{initialsOf(d.profile?.display_name ?? 'You')}{!d.broker?.connected && <i className="dot" />}</span>Profile

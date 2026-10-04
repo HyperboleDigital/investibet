@@ -5,7 +5,7 @@
   --coral:#E8503A;--coral2:rgba(232,80,58,.10);
   --gold:#C08A14;--gold2:rgba(192,138,20,.12);
   --peri:#6B7CF5;--peri2:rgba(107,124,245,.12);
-  --glass:rgba(255,255,255,.58);--glass-edge:rgba(255,255,255,.75);
+  --glass:rgba(255,255,255,.44);--glass-edge:rgba(255,255,255,.7);
   --glass-dark:rgba(23,27,46,.82);
   --wash-party:linear-gradient(160deg,rgba(243,187,255,.30),rgba(150,196,255,.14));
   --wash-calm:linear-gradient(180deg,rgba(150,196,255,.14),transparent);
@@ -23,7 +23,7 @@ html{height:100%;scroll-padding-top:env(safe-area-inset-top,0px);-webkit-text-si
   --peri:#8B96FF;--peri2:rgba(139,150,255,.16);
   --wash-party:linear-gradient(160deg,rgba(248,196,255,.10),rgba(150,196,255,.05));
   --wash-calm:linear-gradient(180deg,rgba(150,196,255,.07),transparent);
-  --glass:rgba(22,25,34,.62);--glass-edge:rgba(255,255,255,.1);
+  --glass:rgba(20,23,32,.5);--glass-edge:rgba(255,255,255,.12);
   --glass-dark:rgba(8,10,16,.82);
   --float:0 10px 30px rgba(0,0,0,.5);
 }
@@ -31,9 +31,9 @@ html{height:100%;scroll-padding-top:env(safe-area-inset-top,0px);-webkit-text-si
 :root[data-theme="dark"] .btn:not(.ghost):not(.danger){color:#0D0F14}
 :root[data-theme="dark"] nav{box-shadow:0 10px 32px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.08)}
 :root[data-theme="dark"] nav{background:linear-gradient(180deg,rgba(255,255,255,.08),rgba(255,255,255,0) 48%),var(--glass)}
-:root[data-theme="dark"] nav .lens{background:rgba(255,255,255,.14);box-shadow:0 2px 10px rgba(0,0,0,.4),inset 0 1px 0 rgba(255,255,255,.22)}
-:root[data-theme="dark"] nav .lens:after{opacity:.2}
-:root[data-theme="dark"] nav .lens.drag{background:rgba(255,255,255,.22)}
+:root[data-theme="dark"] nav .lens{background:rgba(34,38,50,.8);box-shadow:0 4px 16px rgba(0,0,0,.45),inset 0 1px 0 rgba(255,255,255,.18)}
+:root[data-theme="dark"] nav .lens:before{opacity:.5}
+:root[data-theme="dark"] nav .lens:after{opacity:.16}
 :root[data-theme="dark"] .seg button.on,:root[data-theme="dark"] .hzp button.on{background:#2E3340;color:var(--ink);box-shadow:none}
 :root[data-theme="dark"] .hzp{background:rgba(255,255,255,.07)}
 :root[data-theme="dark"] .ss-num{background:rgba(255,255,255,.12)}
@@ -321,10 +321,16 @@ header{display:flex;align-items:center;justify-content:space-between;padding:18p
 .ladder{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}.ladder div{background:var(--bg3);border-radius:12px;padding:10px;text-align:center}.ladder .l{font-size:12px;color:var(--muted)}.ladder .v{font-weight:700;color:var(--mint)}
 /* Floating pill tab bar: liquid glass capsule. Saturated blur, specular top edge, soft drop. */
 nav{position:fixed;bottom:calc(10px + env(safe-area-inset-bottom,0px));left:12px;right:12px;max-width:496px;margin:0 auto;background:linear-gradient(180deg,rgba(255,255,255,.45),rgba(255,255,255,0) 48%),var(--glass);backdrop-filter:blur(26px) saturate(190%);-webkit-backdrop-filter:blur(26px) saturate(190%);border:1px solid var(--glass-edge);border-radius:999px;display:grid;grid-template-columns:repeat(4,1fr);padding:5px;box-shadow:0 10px 32px rgba(23,27,46,.18),inset 0 1.5px 0 rgba(255,255,255,.9),inset 0 -1px 2px rgba(23,27,46,.05);z-index:10;position:fixed;touch-action:none}
-/* The Liquid Glass lens: one floating highlight that springs between tabs and follows the thumb */
-nav .lens{position:absolute;top:5px;bottom:5px;width:calc(25% - 10px);border-radius:999px;background:rgba(255,255,255,.82);box-shadow:0 2px 10px rgba(23,27,46,.16),inset 0 1.5px 0 rgba(255,255,255,.95),inset 0 -1px 2px rgba(23,27,46,.08);transition:left .45s cubic-bezier(.3,1.5,.4,1),transform .22s cubic-bezier(.2,.9,.3,1.3),background .2s;will-change:left,transform;z-index:0}
-nav .lens:after{content:"";position:absolute;inset:2px;border-radius:999px;background:radial-gradient(60% 45% at 30% 16%,rgba(255,255,255,.95),transparent 70%);opacity:.75;pointer-events:none}
-nav .lens.drag{transform:scale(1.22) translateY(-3px);background:rgba(255,255,255,.95)}
+/* The Liquid Glass lens: transparent magnifier. It carries a scaled clone of the tab strip,
+   clipped to the capsule, so icons and labels genuinely zoom and slide under the glass. */
+nav .lens{position:absolute;top:5px;bottom:5px;width:calc(25% - 10px);border-radius:999px;overflow:hidden;background:rgba(255,255,255,.66);backdrop-filter:blur(10px) saturate(180%);-webkit-backdrop-filter:blur(10px) saturate(180%);box-shadow:0 4px 16px rgba(23,27,46,.18),inset 0 1.5px 0 rgba(255,255,255,.9);transition:left .45s cubic-bezier(.3,1.5,.4,1),transform .22s cubic-bezier(.2,.9,.3,1.3);will-change:left,transform;z-index:2;pointer-events:none}
+nav .lens:before{content:"";position:absolute;inset:0;border-radius:999px;padding:1.5px;background:conic-gradient(from 210deg,rgba(255,120,200,.55),rgba(120,200,255,.55),rgba(140,255,200,.45),rgba(255,220,140,.5),rgba(255,120,200,.55));-webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);mask-composite:exclude;opacity:.75;z-index:3;pointer-events:none}
+nav .lens:after{content:"";position:absolute;inset:2px;border-radius:999px;background:radial-gradient(60% 42% at 30% 14%,rgba(255,255,255,.8),transparent 70%);opacity:.5;pointer-events:none;z-index:3}
+nav .lens .mag{position:absolute;top:0;bottom:0;width:calc(400% + 40px);display:grid;grid-template-columns:repeat(4,1fr);transition:left .45s cubic-bezier(.3,1.5,.4,1);will-change:left}
+nav .lens .mg{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;font-size:11px;font-weight:700;color:var(--ink);transform:scale(1.14);transition:transform .22s cubic-bezier(.2,.9,.3,1.3)}
+nav .lens.drag{transform:scale(1.15) translateY(-4px)}
+nav .lens.drag .mg{transform:scale(1.24)}
+nav .lens .mg svg{width:22px;height:22px}
 nav button{padding:6px 2px;min-height:52px;border-radius:999px;font-size:11px;font-weight:600;color:var(--muted);display:flex;flex-direction:column;align-items:center;gap:3px;transition:transform .15s}
 nav button:active{transform:scale(.92)}
 nav button{position:relative;z-index:1}
