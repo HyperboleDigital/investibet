@@ -13,6 +13,35 @@
   box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
 }
 html{height:100%;scroll-padding-top:env(safe-area-inset-top,0px);-webkit-text-size-adjust:100%;text-size-adjust:100%}
+/* Dark theme, Hard Rock's register: near-black canvas, the same semantic tokens */
+:root[data-theme="dark"]{
+  --bg:#0D0F14;--bg2:#161922;--bg3:#1F232E;--line:#2A2F3B;
+  --ink:#EEF0F6;--muted:#9AA0B2;--dim:#697083;
+  --mint:#4FE3A8;--mint2:rgba(79,227,168,.14);
+  --coral:#FF6B5B;--coral2:rgba(255,107,91,.14);
+  --gold:#F5C451;--gold2:rgba(245,196,81,.16);
+  --peri:#8B96FF;--peri2:rgba(139,150,255,.16);
+  --wash-party:linear-gradient(160deg,rgba(248,196,255,.10),rgba(150,196,255,.05));
+  --wash-calm:linear-gradient(180deg,rgba(150,196,255,.07),transparent);
+  --glass:rgba(22,25,34,.62);--glass-edge:rgba(255,255,255,.1);
+  --glass-dark:rgba(8,10,16,.82);
+  --float:0 10px 30px rgba(0,0,0,.5);
+}
+:root[data-theme="dark"] #root:before{background:radial-gradient(70% 240px at 50% -60px,rgba(248,196,255,.1),rgba(150,196,255,.05) 55%,transparent 75%)}
+:root[data-theme="dark"] .btn{color:#0D0F14}
+:root[data-theme="dark"] nav{box-shadow:0 10px 32px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.08)}
+:root[data-theme="dark"] nav button.on{background:rgba(255,255,255,.12);box-shadow:none}
+:root[data-theme="dark"] .seg button.on,:root[data-theme="dark"] .hzp button.on{background:#2E3340;color:var(--ink);box-shadow:none}
+:root[data-theme="dark"] .hzp{background:rgba(255,255,255,.07)}
+:root[data-theme="dark"] .ss-num{background:rgba(255,255,255,.12)}
+:root[data-theme="dark"] .score{background:#262B36}
+:root[data-theme="dark"] .promo .x{background:rgba(255,255,255,.08)}
+:root[data-theme="dark"] .res{background:rgba(255,255,255,.08)}
+:root[data-theme="dark"] .card2.shimmer:after{background:linear-gradient(110deg,transparent 30%,rgba(255,255,255,.07) 50%,transparent 70%)}
+:root[data-theme="dark"] .scrim{background:rgba(0,0,0,.55)}
+:root[data-theme="dark"] .avatar .dot{border-color:var(--bg2)}
+:root[data-theme="dark"] .numpad button:active{background:#2E3340}
+
 *,*:before,*:after{box-sizing:inherit}
 body{margin:0;height:100%;background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text",system-ui,"Segoe UI",Roboto,sans-serif;font-feature-settings:"tnum" 1;font-variant-numeric:tabular-nums;-webkit-font-smoothing:antialiased;overscroll-behavior:none}
 button{font:inherit;color:inherit;background:none;border:0;cursor:pointer;padding:0;min-height:44px}
@@ -140,6 +169,7 @@ header{display:flex;align-items:center;justify-content:space-between;padding:18p
 /* Stock rows, Roi's pattern: hairline dividers, no boxes */
 .stockrow{width:100%;display:grid;grid-template-columns:40px 1fr auto;gap:12px;align-items:center;padding:10px 6px;min-height:62px;text-align:left;border-bottom:1px solid var(--line);transition:transform .12s}
 .stockrow:active{transform:scale(.985)}
+.stockrow.sel{background:var(--mint2);border-radius:12px;border-bottom-color:transparent;box-shadow:inset 0 0 0 1.5px var(--mint)}
 .sdisc{width:36px;height:36px;border-radius:50%;background:var(--bg3);display:inline-flex;align-items:center;justify-content:center;font-weight:800;font-size:11px;letter-spacing:.02em;color:var(--muted);flex:none}
 .sdisc.big{width:44px;height:44px;font-size:13px}
 .stockrow .tk{font-weight:700;font-size:15px}
@@ -215,8 +245,15 @@ header{display:flex;align-items:center;justify-content:space-between;padding:18p
 .numpad{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:8px 0 12px}
 .numpad button{min-height:50px;border-radius:10px;background:var(--bg3);font-size:22px;font-weight:600;display:inline-flex;align-items:center;justify-content:center}
 .numpad button:active{background:var(--line);transform:scale(.97)}
-.trio{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin:14px 0}.trio div{background:var(--bg3);border-radius:12px;padding:10px;text-align:center}
-.trio .l{font-size:12px;color:var(--muted)}.trio .v{font-weight:700;font-size:16px;margin-top:2px}.trio .mint{color:var(--mint)}.trio .gold{color:var(--gold)}
+/* The slip trio wears the Home face-off language: tinted fun cards */
+.trio2{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:14px 0}
+.tc{border-radius:14px;padding:12px 10px;border:1px solid var(--line);background:var(--bg3);text-align:left;min-width:0}
+.tc.winc{background:var(--mint2);border-color:rgba(15,163,110,.3)}
+.tc.futc{background:var(--wash-party),var(--bg2)}
+.tc .l{font-size:11px;font-weight:700;color:var(--muted)}
+.tc .v{font-size:16.5px;font-weight:800;letter-spacing:-.02em;margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tc .v.grad{background:linear-gradient(90deg,var(--peri),var(--mint));-webkit-background-clip:text;background-clip:text;color:transparent}
+.tc .s{font-size:10.5px;color:var(--muted);margin-top:3px;line-height:1.3}
 .search{width:100%;padding:12px;min-height:44px;border-radius:12px;background:var(--bg2);border:1px solid var(--line);outline:none;margin-bottom:8px}
 .search:focus{border-color:var(--mint)}
 .srow{width:100%;display:grid;grid-template-columns:64px 1fr auto;gap:10px;align-items:center;padding:12px 8px;min-height:56px;border-radius:12px;text-align:left;border:1px solid transparent}

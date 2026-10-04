@@ -199,6 +199,18 @@ function useData(session: Session | null) {
 /* ---------- app ---------- */
 export default function App() {
   const [session, setSession] = useState<Session | null>(null); const [ready, setReady] = useState(false);
+  useEffect(() => {
+    const apply = () => {
+      const pref = localStorage.getItem('ib_theme') ?? 'auto';
+      const dark = pref === 'dark' || (pref === 'auto' && matchMedia('(prefers-color-scheme: dark)').matches);
+      document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+      document.querySelector('meta[name="theme-color"]')?.setAttribute('content', dark ? '#0D0F14' : '#F2F3F7');
+    };
+    apply();
+    const mq = matchMedia('(prefers-color-scheme: dark)');
+    mq.addEventListener('change', apply); window.addEventListener('ib-theme', apply);
+    return () => { mq.removeEventListener('change', apply); window.removeEventListener('ib-theme', apply); };
+  }, []);
   useEffect(() => { sb.auth.getSession().then(({ data }) => { setSession(data.session); setReady(true); }); const { data } = sb.auth.onAuthStateChange((_, s) => setSession(s)); return () => data.subscription.unsubscribe(); }, []);
   if (!ready) return null;
   if (!session) return <Gate />;
@@ -620,8 +632,16 @@ function Slip({ d, legs, stake, setStake, onRemove, onClose, onLocked, say, brok
       <div style={{ fontWeight: 700, margin: '12px 0 6px' }}>What does your {fmt0(stakeN)} buy?</div>
       <div className="chips">{TIERS.map((t, i) => <button key={t} className={'chip slim ' + (tier === i && !q ? 'on' : '')} onClick={() => { setTier(i); setQ(''); }}>{t}</button>)}</div>
       <input className="search" placeholder="Search tickers" value={q} onChange={e => setQ(e.target.value)} />
-      {list.map(x => <button key={x.ticker} className={'srow ' + (ticker === x.ticker ? 'sel' : '')} onClick={() => setTicker(x.ticker)}><div className="tk">{x.ticker}</div><div className="nm">{x.name}</div><div><div className="ln">+{x.avg_return_10y}%/yr</div><div className="dd">worst drop {x.max_drawdown}%</div></div></button>)}
-      <div className="trio"><div><div className="l">Win</div><div className="v mint">{points} pts</div></div><div><div className="l">Miss</div><div className="v">keep {fmt0(stakeN)}</div></div><div><div className="l">In 5 years</div><div className="v gold">{s ? '~' + fmt0(projectSmart(stakeN, s.avg_return_10y, 5)) : 'pick a stock'}</div></div></div>
+      {list.map(x => <button key={x.ticker} className={'stockrow ' + (ticker === x.ticker ? 'sel' : '')} aria-pressed={ticker === x.ticker} onClick={() => setTicker(x.ticker)}>
+        <span className="sdisc" aria-hidden="true">{x.ticker.slice(0, 2)}</span>
+        <div><div className="tk">{x.ticker}</div><div className="nm">{x.name} · worst drop {x.max_drawdown}%</div></div>
+        <div>{d.prices[x.ticker] ? <div className="pr">{fmt(d.prices[x.ticker])}</div> : null}<div className="ch">+{x.avg_return_10y}%/yr</div></div>
+      </button>)}
+      <div className="trio2">
+        <div className="tc winc"><div className="l">Win</div><div className="v mint">{points} pts</div><div className="s">toward the pot</div></div>
+        <div className="tc"><div className="l">Miss</div><div className="v">keep {fmt0(stakeN)}</div><div className="s">the stock stays yours</div></div>
+        <div className="tc futc"><div className="l">In 5 years</div><div className={'v' + (s ? ' grad' : '')}>{s ? '~' + fmt0(projectSmart(stakeN, s.avg_return_10y, 5)) : 'pick one'}</div><div className="s">at past averages, faded</div></div>
+      </div>
       <button className="btn" disabled={!ticker || busy} onClick={lock}>{busy ? 'Locking…' : !brokerConnected && ticker ? 'Connect brokerage to lock' : ticker ? `Lock ${fmt0(stakeN)} on ${single.line.selection.split('|')[0]} → ${ticker}` : 'Pick a stock to lock'}</button>
       <div className="disc">Odds lock now. During beta the buy is simulated at the next market price. Lines are approximate 10-year averages and worst peak-to-trough drops. Not advice.</div>
     </>}
@@ -987,6 +1007,8 @@ function Owned({ d, gm, onStock }: { d: ReturnType<typeof useData>; gm: Record<s
 /* ---------- profile ---------- */
 function ProfileTab({ d, gm, uid, say, onBroker }: { d: ReturnType<typeof useData>; gm: Record<string, Game>; uid: string; say: (m: string) => void; onBroker: () => void }) {
   const [how, setHow] = useState(false);
+  const [theme, setTheme] = useState(() => localStorage.getItem('ib_theme') ?? 'auto');
+  const pickTheme = (t: string) => { localStorage.setItem('ib_theme', t); setTheme(t); window.dispatchEvent(new Event('ib-theme')); };
   const [pw, setPw] = useState(''); const [pwBusy, setPwBusy] = useState(false);
   const savePw = async () => {
     if (pw.length < 8) return say('8 characters minimum');
@@ -1015,6 +1037,11 @@ function ProfileTab({ d, gm, uid, say, onBroker }: { d: ReturnType<typeof useDat
     </div>
     <div className="card"><div className="row"><div><div style={{ fontWeight: 700 }}>This month</div><div className="small">{wins} won · {losses} missed · streak {d.profile?.streak ?? 0}</div></div><div style={{ fontWeight: 700, fontSize: 22 }}>{monthPts} pts</div></div></div>
     <CupSection d={d} uid={uid} />
+    <div className="card">
+      <div style={{ fontWeight: 700 }}>Appearance</div>
+      <div className="seg" style={{ marginTop: 10, marginBottom: 0 }}>{(['auto', 'light', 'dark'] as const).map(t =>
+        <button key={t} className={theme === t ? 'on' : ''} onClick={() => pickTheme(t)}>{t[0].toUpperCase() + t.slice(1)}</button>)}</div>
+    </div>
     <div className="card">
       <div style={{ fontWeight: 700 }}>Sign-in password</div>
       <div className="small" style={{ marginTop: 4 }}>Set one once and skip the email code next time. 8 characters or more.</div>
