@@ -2,7 +2,7 @@ import { useEffect, useId, useMemo, useRef, useState, useCallback } from 'react'
 import type { Session } from '@supabase/supabase-js';
 import { sb, ENABLE_PROPS } from './lib/supabase';
 import Symbol from './Symbol';
-import { implied, basePoints, potSplit, projectSmart, marketOpen, stackOdds, stackPoints, bookValue, counterfactualDelta } from '@investibet/core';
+import { implied, basePoints, potSplit, projectSmart, marketOpen, stackOdds, stackPoints, bookValue, counterfactualDelta, streakMultiplier } from '@investibet/core';
 
 /* ---------- types ---------- */
 type Game = { id: string; sport_key: string; league: string; home: string; away: string; commence_time: string; completed: boolean; home_score: number | null; away_score: number | null; period?: number | null; clock?: string | null; last_play?: string | null; down_distance?: string | null };
@@ -10,7 +10,7 @@ type Line = { game_id: string; market: string; selection: string; point: number 
 type TeamInfo = { abbreviation: string; short_name: string; ui_color: string | null };
 type Pick = { id: string; game_id: string; market: string; selection: string; point: number | null; odds: number; stake: number; ticker: string; locked_at: string; fill_price: number | null; shares: number | null; filled_at: string | null; status: string; points: number; counted: boolean; live?: boolean };
 type Stock = { ticker: string; name: string; tier: number; avg_return_10y: number; max_drawdown: number };
-type Profile = { id: string; display_name: string; streak: number; weekly_cap: number | null };
+type Profile = { id: string; display_name: string; streak: number; weekly_cap: number | null; created_at?: string };
 type LB = { user_id: string; display_name: string; streak: number; month: string; points: number | null; wins: number; losses: number };
 type Broker = { provider: string; connected: boolean } | null;
 type Leg = { game: Game; line: Line };
@@ -27,6 +27,7 @@ const legKey = (l: Line) => [l.game_id, l.market, l.selection, l.point].join('|'
 const MARKET_LABEL: Record<string, string> = { h2h: 'Winner', spreads: 'Spread', totals: 'Total', prop: 'Prop' };
 const legLabel = (l: { market: string; selection: string; point: number | null }) =>
   l.market === 'prop' ? l.selection.split('|')[0] + ' ' + l.selection.split('|')[2] + ' ' + (l.point ?? '') : l.selection + (l.market === 'h2h' ? '' : ' ' + pt(l.point));
+const fmtMult = (m: number) => '\u00d7' + (Math.round(m * 100) / 100);
 const initialsOf = (name: string) => name.trim().split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase() || 'U';
 
 /* ---------- rolling number: live values roll on change, still numbers under reduced motion ---------- */
@@ -309,7 +310,8 @@ function Shell({ session }: { session: Session }) {
     setCart([...base, { game, line }]);
   };
   const removeLeg = (i: number) => { const next = cart.filter((_, j) => j !== i); setCart(next); if (!next.length) setSlipOpen(false); };
-  const pts = cart.length ? stackPoints(cart.map(x => x.line.price)) : 0;
+  const nextMult = streakMultiplier((d.profile?.streak ?? 0) + 1);
+  const pts = cart.length ? Math.round(stackPoints(cart.map(x => x.line.price)) * nextMult) : 0;
 
   return <>
     {stockOpen ? <StockPage ticker={stockOpen} d={d} gm={gm} onClose={() => setStockOpen(null)} /> : <>
@@ -604,7 +606,10 @@ function Slip({ d, legs, stake, setStake, onRemove, onClose, onLocked, say, brok
   if (!open) return <><div className="scrim" /><div className="sheet" /></>;
   const single = legs.length === 1 ? legs[0] : null;
   const combined = stackOdds(legs.map(x => x.line.price));
-  const points = stackPoints(legs.map(x => x.line.price));
+  const basePts = stackPoints(legs.map(x => x.line.price));
+  const streak = d.profile?.streak ?? 0;
+  const nextMult = streakMultiplier(streak + 1);
+  const points = Math.round(basePts * nextMult);
   const stakeN = Math.min(9999, parseFloat(raw) || 0);
   const push = (c: string) => setRaw(r => {
     let n = r;
@@ -647,9 +652,11 @@ function Slip({ d, legs, stake, setStake, onRemove, onClose, onLocked, say, brok
       </>}
       <div className="se" style={{ marginTop: 16 }}>
         <div><div className="l">Stake</div><div className={'sx' + (raw === '' ? ' empty' : '')}>{'$' + (raw === '' ? '0' : raw)}</div></div>
-        <div><div className="l">Earns</div><div className="v mint">{points} pts</div><div className="small" style={{ marginTop: 2 }}>plus the stock, win or miss</div></div>
+        <div><div className="l">Earns</div><div className="v mint">{points} pts</div>
+          {streak >= 1 ? <div className="boost"><Flame size={14} streak={streak} />{basePts} {fmtMult(nextMult)} · your {streak}-streak bonus</div>
+            : <div className="small" style={{ marginTop: 2 }}>plus the stock, win or miss</div>}</div>
       </div>
-      <div className="disc" style={{ marginTop: 6 }}>Hit the pick and the points are yours, same at any stake. Streaks of 3 and 5 multiply them.</div>
+      <div className="disc" style={{ marginTop: 6 }}>Hit the pick and the points are yours, same at any stake. Every consecutive win compounds them another 20%, up to 5x.</div>
       <div className="quickadd">{[5, 10, 25].map(v => <button key={v} onClick={() => add(v)}>+${v}</button>)}</div>
       <div className="numpad">{['1', '2', '3', '4', '5', '6', '7', '8', '9', '.', '0', '<'].map(k =>
         <button key={k} aria-label={k === '<' ? 'Delete' : k} onClick={() => push(k)}>{k === '<' ? <Symbol name="backspace" size={22} /> : k}</button>)}</div>
@@ -663,7 +670,7 @@ function Slip({ d, legs, stake, setStake, onRemove, onClose, onLocked, say, brok
         <button className="back" aria-label="Back to the stake" onClick={() => setStep(1)}><Symbol name="arrowleft" size={18} /></button>
         <div style={{ minWidth: 0 }}>
           <div className="side" style={{ fontSize: 16 }}>{legLabel(single.line)} <span className="odds-acc">{oddsTxt(single.line.price)}</span></div>
-          <div className="meta" style={{ marginTop: 2 }}>{fmt0(stakeN)} stake · earns {points} pts if it hits</div>
+          <div className="meta" style={{ marginTop: 2 }}>{fmt0(stakeN)} stake · earns {points} pts if it hits{streak >= 1 ? ` (${fmtMult(nextMult)} streak)` : ''}</div>
         </div>
       </div>
       <div style={{ fontWeight: 700, margin: '12px 0 6px' }}>What does your {fmt0(stakeN)} buy?</div>
@@ -816,7 +823,8 @@ function Picks({ d, gm, say, onEvent }: { d: ReturnType<typeof useData>; gm: Rec
             <div className="eyebrow">{MARKET_LABEL[p.market] ?? p.market} · to hit</div>
             {!live && <div className="meta">{g.away} @ {g.home}</div>}</div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 'none' }}><span className="odds-acc" style={{ fontSize: 17 }}>{oddsTxt(p.odds)}</span>{!won && !live && statusChip(p, live)}</div></div>
-          <div className="se"><div><div className="l">Stake</div><div className="v">{fmt0(Number(p.stake))}</div></div><div><div className="l">Earns</div><div className="v">{earnsTxt(p)}</div></div></div>
+          <div className="se"><div><div className="l">Stake</div><div className="v">{fmt0(Number(p.stake))}</div></div><div><div className="l">Earns</div><div className="v">{earnsTxt(p)}</div>
+            {won && Number(p.points) > basePoints(p.odds) * 1.01 && <div className="boost"><Flame size={13} streak={3} />{fmtMult(Number(p.points) / basePoints(p.odds))} streak boost</div>}</div></div>
           {live ? <ScoreBand g={g} teams={d.teams} state="live" onEvent={() => onEvent(g.id)} />
             : won && g.completed ? <ScoreStrip g={g} teams={d.teams} />
             : g.completed ? <ScoreBand g={g} teams={d.teams} state="final" />
@@ -866,7 +874,7 @@ function PickSheet({ p, g, d, say, onClose, onEvent }: { p: Pick | null; g: Game
       <div className="se"><div><div className="l">Stake</div><div className="v">{fmt0(Number(p.stake))}</div></div><div><div className="l">Earns</div><div className="v">{earnsTxt(p)}</div></div></div>
       {live ? <ScoreBand g={g} teams={d.teams} state="live" onEvent={() => onEvent(g.id)} /> : g.completed ? <ScoreBand g={g} teams={d.teams} state="final" /> : null}
     </>}
-    {won && Number(p.points) > basePoints(p.odds) && <div className="small" style={{ marginTop: 8 }}>{basePoints(p.odds)} base with the streak multiplier applied</div>}
+    {won && Number(p.points) > basePoints(p.odds) * 1.01 && <div className="boost" style={{ marginTop: 8 }}><Flame size={14} streak={3} />{basePoints(p.odds)} base {fmtMult(Number(p.points) / basePoints(p.odds))} streak boost</div>}
     <div className="card" style={{ margin: '14px 0 10px' }}>
       <div style={{ fontWeight: 700 }}>{p.ticker}{stock ? ` · ${stock.name}` : ''}</div>
       <div className="meta" style={{ marginTop: 6 }}>{p.filled_at ? `Bought ${Number(p.shares).toFixed(4)} shares at ${fmt(Number(p.fill_price))}` : `${fmt0(Number(p.stake))} buys at the next market open`}</div>
@@ -880,17 +888,51 @@ function PickSheet({ p, g, d, say, onClose, onEvent }: { p: Pick | null; g: Game
   </div></>;
 }
 
-/* ---------- the cup (lives inside Profile) ---------- */
+/* ---------- the cup: gold pot with a split donut ---------- */
+const CUP_COLORS = ['#F5C451', '#4FE3A8', '#8B96FF', '#E560B6', '#3FB6C9', '#9AA0B2'];
+function Donut({ parts, size = 132, stroke = 24, top, sub }: { parts: { value: number; color: string }[]; size?: number; stroke?: number; top: string; sub: string }) {
+  const r = (size - stroke) / 2, C = 2 * Math.PI * r;
+  const total = parts.reduce((t, p) => t + p.value, 0) || 1;
+  let acc = 0;
+  return <div className="donutwrap" style={{ width: size, height: size }}>
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ transform: 'rotate(-90deg)' }} aria-hidden="true">
+      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="var(--pill)" strokeWidth={stroke} />
+      {parts.map((p, i) => {
+        const frac = p.value / total; const dash = Math.max(frac * C - 2.5, 0.01); const off = -acc * C; acc += frac;
+        return <circle key={i} cx={size / 2} cy={size / 2} r={r} fill="none" stroke={p.color} strokeWidth={stroke} strokeDasharray={`${dash} ${C - dash}`} strokeDashoffset={off} />;
+      })}
+    </svg>
+    <div className="donutc"><b>{top}</b><span>{sub}</span></div>
+  </div>;
+}
 function CupSection({ d, uid }: { d: ReturnType<typeof useData>; uid: string }) {
   const rows = d.lb.map(r => ({ id: r.user_id, points: Number(r.points ?? 0) })); const split = potSplit(rows, d.pot);
   const sorted = [...d.lb].sort((a, b) => Number(b.points ?? 0) - Number(a.points ?? 0)); const mine = split[uid] ?? 0;
+  const myPct = d.pot ? (mine / d.pot) * 100 : 0;
+  const colorOf = (id: string, i: number) => (id === uid ? CUP_COLORS[0] : CUP_COLORS[(i % (CUP_COLORS.length - 2)) + 1]);
+  const top5 = sorted.slice(0, 5);
+  const rest = sorted.slice(5).reduce((t, r) => t + (split[r.user_id] ?? 0), 0);
+  const parts = [...top5.map((r, i) => ({ value: split[r.user_id] ?? 0, color: colorOf(r.user_id, i) })), ...(rest > 0 ? [{ value: rest, color: CUP_COLORS[5] }] : [])];
   return <>
     <div className="lg-head" style={{ marginTop: 18 }}><Symbol name="trophy" size={18} /><h3>The Cup</h3></div>
-    <div className="pot"><div className="row"><span className="small">Monthly pot</span><span className="small">{new Date(month() + '-02').toLocaleString(undefined, { month: 'long', year: 'numeric' })}</span></div>
-      <div className="big"><Roll value={d.pot} format={fmt0} /></div>
-      {rows.some(r => r.id === uid) && <div className="hint" style={{ margin: '6px 0 0' }}>You hold <b className="mint">{(d.pot ? mine / d.pot * 100 : 0).toFixed(1)}%</b> of the pot right now: <b className="mint">{fmt(mine)}</b></div>}
-      <div className="small" style={{ marginTop: 8 }}>60% split by points, 40% to the top 10. Points are the odds you hit, stake never matters. Best 15 picks a week count.</div></div>
-    {sorted.length ? sorted.map((r, i) => <div key={r.user_id} className={'lrow ' + (r.user_id === uid ? 'me' : '')}><div className="rk">{i + 1}</div><div className="nm">{r.display_name} {r.streak >= 3 && <span className="flame"><Symbol name="flame" size={12} />{r.streak}</span>}</div><div className="pt">{Math.round(Number(r.points ?? 0))}</div><div className="sh">{fmt0(split[r.user_id] ?? 0)}</div></div>) : <p className="hint">Nobody has settled a pick this month yet.</p>}
+    <div className="pot pot2">
+      <div className="row"><span className="potlbl"><Symbol name="trophy" size={16} />Monthly pot</span><span className="small">{new Date(month() + '-02').toLocaleString(undefined, { month: 'long', year: 'numeric' })}</span></div>
+      <div className="cuprow">
+        {parts.length > 0 && <Donut parts={parts} top={`${myPct.toFixed(0)}%`} sub="yours" />}
+        <div style={{ minWidth: 0, flex: 1 }}>
+          <div className="big goldgrad"><Roll value={d.pot} format={fmt0} /></div>
+          {mine > 0 ? <div className="hint" style={{ margin: '4px 0 0' }}>You hold <b className="gold">{myPct.toFixed(1)}%</b> = <b className="gold">{fmt(mine)}</b> right now</div>
+            : <div className="hint" style={{ margin: '4px 0 0' }}>Settle a pick this month to claim a slice</div>}
+          <div className="small" style={{ marginTop: 8 }}>60% split by points, 40% to the top 10. Best 15 picks a week count.</div>
+        </div>
+      </div>
+    </div>
+    {sorted.length ? sorted.map((r, i) => <div key={r.user_id} className={'lrow ' + (r.user_id === uid ? 'me' : '')}>
+      <span className="dt" style={{ background: i < 5 ? colorOf(r.user_id, i) : CUP_COLORS[5] }} />
+      <div className="rk">{i + 1}</div>
+      <div className="nm">{r.display_name} {r.streak >= 3 && <span className="flame"><Symbol name="flame" size={12} />{r.streak}</span>}</div>
+      <div className="pt">{Math.round(Number(r.points ?? 0))}</div><div className="sh">{fmt0(split[r.user_id] ?? 0)}</div>
+    </div>) : <p className="hint">Nobody has settled a pick this month yet.</p>}
   </>;
 }
 
@@ -1097,6 +1139,13 @@ function ProfileTab({ d, gm, uid, say, onBroker }: { d: ReturnType<typeof useDat
   const [how, setHow] = useState(false);
   const [theme, setTheme] = useState(() => localStorage.getItem('ib_theme') ?? 'auto');
   const pickTheme = (t: string) => { localStorage.setItem('ib_theme', t); setTheme(t); window.dispatchEvent(new Event('ib-theme')); };
+  const [editName, setEditName] = useState(false); const [nameDraft, setNameDraft] = useState('');
+  const saveName = async () => {
+    const v = nameDraft.trim().slice(0, 30);
+    if (v.length < 2) return say('2 characters minimum');
+    await sb.from('profiles').update({ display_name: v }).eq('id', d.profile!.id);
+    setEditName(false); say('Name updated'); d.reload();
+  };
   const [pw, setPw] = useState(''); const [pwBusy, setPwBusy] = useState(false);
   const savePw = async () => {
     if (pw.length < 8) return say('8 characters minimum');
@@ -1111,9 +1160,25 @@ function ProfileTab({ d, gm, uid, say, onBroker }: { d: ReturnType<typeof useDat
   const value = ownedValue(mine, d.prices);
   const wins = mine.filter(p => p.status === 'won').length, losses = mine.filter(p => p.status === 'lost').length;
   const monthPts = Math.round(mine.filter(p => p.counted).reduce((s, p) => s + Number(p.points), 0));
-  const saveCap = async (v: string) => { await sb.from('profiles').update({ weekly_cap: v ? Number(v) : null }).eq('id', d.profile!.id); say(v ? 'Cap set' : 'Cap removed'); d.reload(); };
   return <section className="view">
-    <div className="whoami"><span className="avatar big">{initialsOf(name)}</span><div><h2 style={{ fontSize: 22 }}>{name}</h2><div className="small">Private beta</div></div></div>
+    {(() => { const w = name.trim().split(/\s+/); const first = w[0] ?? 'You'; const rest = w.slice(1).join(' ');
+      const joined = d.profile?.created_at ? new Date(d.profile.created_at).toLocaleDateString(undefined, { month: 'long', year: 'numeric' }) : null;
+      return <div className="pf-head">
+        <div style={{ minWidth: 0 }}>
+          <span className="pf-chip">{first.toUpperCase()}</span>
+          <div className="pf-last">{(rest || 'INVESTOR').toUpperCase()}</div>
+          <div className="pf-joined">{joined ? `JOINED ${joined.toUpperCase()}` : 'PRIVATE BETA'}</div>
+        </div>
+        <div className="pf-av">
+          <span className="avatar big" style={{ width: 76, height: 76, fontSize: 24 }}>{initialsOf(name)}</span>
+          <button className="pf-edit" aria-label="Edit display name" onClick={() => { setNameDraft(name); setEditName(e => !e); }}><Symbol name="pencil" size={16} /></button>
+        </div>
+      </div>; })()}
+    {editName && <div className="card"><div style={{ fontWeight: 700 }}>Display name</div>
+      <div className="row" style={{ marginTop: 10 }}>
+        <input value={nameDraft} onChange={e => setNameDraft(e.target.value)} maxLength={30} style={{ flex: 1, padding: 12, minHeight: 44, borderRadius: 10, background: 'var(--bg3)', border: '1px solid var(--line)', outline: 'none' }} aria-label="Display name" />
+        <button className="btn sm" onClick={saveName}>Save</button>
+      </div></div>}
     <div className="card">
       <div className="small">Owned</div>
       <div className="big" style={{ margin: '4px 0' }}><Roll value={value} format={fmt0} /></div>
@@ -1138,8 +1203,6 @@ function ProfileTab({ d, gm, uid, say, onBroker }: { d: ReturnType<typeof useDat
         <button className="btn sm" disabled={pwBusy || pw.length < 8} onClick={savePw}>{pwBusy ? 'Saving…' : 'Save'}</button>
       </div>
     </div>
-    <div className="card"><div className="row"><div style={{ display: 'flex', gap: 10, alignItems: 'center' }}><Symbol name="shield" size={20} /><div><div style={{ fontWeight: 700 }}>Responsible play</div><div className="small">Your weekly stake cap. The app enforces it.</div></div></div>
-      <input type="number" min={0} step={5} defaultValue={d.profile?.weekly_cap ?? ''} onBlur={e => saveCap(e.target.value)} style={{ width: 90, padding: 10, minHeight: 44, borderRadius: 10, background: 'var(--bg3)', border: '1px solid var(--line)', outline: 'none' }} aria-label="Weekly cap" /></div></div>
     <button className="btn ghost" onClick={() => sb.auth.signOut()}>Sign out</button>
     <div className="disc">Investibet never holds your money, never places trades for you, and never recommends a stock. Lines shown are informational. Free, private, invite-only beta.</div>
     <div className="small" style={{ textAlign: 'center', margin: '16px 0' }}>Beta 0.2</div>

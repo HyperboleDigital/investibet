@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { basePoints, grade, scoreSequence, bestFifteen, potSplit, counterfactualDelta, implied, decimalOdds, stackOdds, stackPoints, bookValue, project, projectSmart } from './index';
+import { basePoints, streakMultiplier, grade, scoreSequence, bestFifteen, potSplit, counterfactualDelta, implied, decimalOdds, stackOdds, stackPoints, bookValue, project, projectSmart } from './index';
 
 describe('points', () => {
   it('equals the odds', () => { expect(basePoints(170)).toBe(170); expect(basePoints(-200)).toBe(50); expect(basePoints(-110)).toBe(91); });
@@ -24,10 +24,19 @@ describe('grading', () => {
 });
 
 describe('streaks and best 15', () => {
-  it('multiplies at 3 and 5, resets on loss, ignores unfilled', () => {
+  it('compounds 20% per consecutive win, capped at 5x', () => {
+    expect(streakMultiplier(1)).toBe(1);
+    expect(streakMultiplier(2)).toBeCloseTo(1.2);
+    expect(streakMultiplier(3)).toBeCloseTo(1.44);
+    expect(streakMultiplier(5)).toBeCloseTo(2.0736);
+    expect(streakMultiplier(10)).toBe(5);
+    expect(streakMultiplier(14)).toBe(5);
+  });
+  it('applies the compounding streak, resets on loss, ignores unfilled', () => {
     const mk = (i: number, status: any, filled = true) => ({ id: 'p' + i, odds: 100, status, kickoff: `2026-10-0${i}T00:00:00Z`, filled });
     const r = scoreSequence([mk(1, 'won'), mk(2, 'won'), mk(3, 'won'), mk(4, 'won', false), mk(5, 'won'), mk(6, 'lost'), mk(7, 'won')]);
-    expect(r.points.p1).toBe(100); expect(r.points.p3).toBe(150); expect(r.points.p4).toBe(0); expect(r.points.p5).toBe(150); expect(r.points.p6).toBe(0); expect(r.points.p7).toBe(100);
+    expect(r.points.p1).toBe(100); expect(r.points.p2).toBeCloseTo(120); expect(r.points.p3).toBeCloseTo(144);
+    expect(r.points.p4).toBe(0); expect(r.points.p5).toBeCloseTo(172.8); expect(r.points.p6).toBe(0); expect(r.points.p7).toBe(100);
     expect(r.streak).toBe(1);
   });
   it('keeps only 15 per week', () => {

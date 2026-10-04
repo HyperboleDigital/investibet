@@ -13,8 +13,10 @@ export const profit = (stake: number, odds: number) =>
 export const basePoints = (odds: number) =>
   odds > 0 ? odds : Math.round(10000 / Math.abs(odds));
 
+/** Streaks compound: every consecutive win multiplies points by another 20%,
+ *  capped at 5x (reached at a 10 streak). 1, 1.2, 1.44, 1.73, 2.07, 2.49 ... 5. */
 export const streakMultiplier = (streak: number) =>
-  streak >= 5 ? 2 : streak >= 3 ? 1.5 : 1;
+  streak <= 1 ? 1 : Math.min(5, Math.pow(1.2, streak - 1));
 
 /** American to decimal odds. +150 -> 2.5, -200 -> 1.5. */
 export const decimalOdds = (odds: number) =>
