@@ -404,8 +404,10 @@ function Home({ d, uid, cart, onToggle, onCup, onStock, openId, setOpenId }: { d
     const myPicks = d.picks.filter(p => p.game_id === g.id);
     const started = Date.parse(g.commence_time) <= now;
     return <>
-      {[g.away, g.home].map((name, i) => { const t = team(name); const sc = i === 0 ? g.away_score : g.home_score; return <div className="mrow" key={name}>
-        <div className="tname" title={name}><span className="nm2">{t.short_name}</span>{started && sc != null && <span className="scorechip">{sc}</span>}</div>
+      {[g.away, g.home].map((name, i) => { const t = team(name); const sc = i === 0 ? g.away_score : g.home_score;
+        const disp = started ? t.abbreviation : t.short_name.length > 10 ? t.abbreviation : t.short_name;
+        return <div className="mrow" key={name}>
+        <div className="tname" title={name}><span className="nm2">{disp}</span>{started && sc != null && <span className="scorechip">{sc}</span>}</div>
         {MKS.map(([mk]) => {
           const sel = mk === 'totals' ? (i === 0 ? 'Over' : 'Under') : name;
           const l = lineFor(g, mk, sel);
