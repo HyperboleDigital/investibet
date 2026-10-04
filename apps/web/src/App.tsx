@@ -260,8 +260,8 @@ function Gate() {
 }
 
 /* ---------- shell: 5-tab floating pill nav, selection cart, slip ---------- */
-type Tab = 'home' | 'picks' | 'owned' | 'profile';
-const TABS: [Tab, string, string][] = [['home', 'Home', 'home'], ['picks', 'Picks', 'ticket'], ['owned', 'Owned', 'chart']];
+type Tab = 'home' | 'picks' | 'owned' | 'stocks' | 'profile';
+const TABS: [Tab, string, string][] = [['home', 'Home', 'home'], ['picks', 'Picks', 'ticket'], ['owned', 'Invest', 'chart'], ['stocks', 'Stocks', 'magnifyingglass']];
 
 function Shell({ session }: { session: Session }) {
   const d = useData(session); const [tab, setTab] = useState<Tab>('home');
@@ -275,11 +275,11 @@ function Shell({ session }: { session: Session }) {
   const gm = useMemo(() => Object.fromEntries(d.games.map(g => [g.id, g])), [d.games]);
 
   // Liquid Glass lens: the nav highlight detaches under the thumb, springs to where you let go
-  const NAV_ORDER: Tab[] = ['home', 'picks', 'owned', 'profile'];
+  const NAV_ORDER: Tab[] = ['home', 'picks', 'owned', 'stocks', 'profile'];
   const navRef = useRef<HTMLElement | null>(null);
   const [lensI, setLensI] = useState(0); const [lensDrag, setLensDrag] = useState(false);
   useEffect(() => { setLensI(NAV_ORDER.indexOf(tab)); }, [tab]); // eslint-disable-line
-  const idxFromX = (x: number) => { const r = navRef.current?.getBoundingClientRect(); if (!r) return lensI; return Math.max(0, Math.min(3, Math.floor(((x - r.left) / r.width) * 4))); };
+  const idxFromX = (x: number) => { const r = navRef.current?.getBoundingClientRect(); if (!r) return lensI; return Math.max(0, Math.min(4, Math.floor(((x - r.left) / r.width) * 5))); };
   const go = (t: Tab) => { setStockOpen(null); setTab(t); scrollTo(0, 0); };
 
   const toggleLeg = (game: Game, line: Line) => {
@@ -303,6 +303,7 @@ function Shell({ session }: { session: Session }) {
       {tab === 'home' && <Home d={d} uid={session.user.id} cart={cart} onToggle={toggleLeg} onCup={() => setTab('profile')} onStock={setStockOpen} openId={openId} setOpenId={setOpenId} />}
       {tab === 'picks' && <Picks d={d} gm={gm} say={say} onEvent={goGame} />}
       {tab === 'owned' && <Owned d={d} gm={gm} onStock={setStockOpen} />}
+      {tab === 'stocks' && <StocksTab d={d} onStock={setStockOpen} />}
       {tab === 'profile' && <ProfileTab d={d} gm={gm} uid={session.user.id} say={say} onBroker={() => setBrokerOpen(true)} />}
     </>}
     {cart.length > 0 && !slipOpen && <button className="selbar" onClick={() => setSlipOpen(true)}>
@@ -314,7 +315,7 @@ function Shell({ session }: { session: Session }) {
       onTouchMove={e => { setLensI(idxFromX(e.touches[0].clientX)); }}
       onTouchEnd={e => { setLensDrag(false); go(NAV_ORDER[idxFromX(e.changedTouches[0].clientX)]); }}
       onTouchCancel={e => { setLensDrag(false); go(NAV_ORDER[idxFromX(e.changedTouches[0].clientX)]); }}>
-      <i className={'lens' + (lensDrag ? ' drag' : '')} style={{ left: `calc(5px + ${lensI} * ((100% - 10px) / 4))` }} aria-hidden="true">
+      <i className={'lens' + (lensDrag ? ' drag' : '')} style={{ left: `calc(5px + ${lensI} * ((100% - 10px) / 5))` }} aria-hidden="true">
         <span className="mag" style={{ left: `${-lensI * 100}%` }}>
           {TABS.map(([k, l, ic]) => <span className="mg" key={k}><Symbol name={ic} size={22} />{l}</span>)}
           <span className="mg"><span className="avatar">{initialsOf(d.profile?.display_name ?? 'You')}</span>Profile</span>
@@ -914,6 +915,8 @@ function StockPage({ ticker, d, gm, onClose }: { ticker: string; d: ReturnType<t
   const shares = held.reduce((t, p) => t + Number(p.shares), 0);
   const cost = held.reduce((t, p) => t + Number(p.stake), 0);
   const val = latest ? shares * latest : cost;
+  const firstBuy = held.length ? held.reduce((m, p) => (p.filled_at! < m ? p.filled_at! : m), held[0].filled_at!) : null;
+  const totalOwned = ownedValue(d.picks.filter(p => gm[p.game_id]), d.prices);
   const curve = Array.from({ length: years + 1 }, (_, i) => projectSmart(100, s.avg_return_10y, i));
   const ai = at ?? years;
   return <section className="view">
@@ -926,7 +929,7 @@ function StockPage({ ticker, d, gm, onClose }: { ticker: string; d: ReturnType<t
       <span>· {scrubbing ? dateLbl(slice![pai][0]) : rangeLabel.toLowerCase()}</span>
     </div>}
     {haveChart ? <>
-      <LineChart fit series={[{ color: up ? 'var(--mint)' : 'var(--dim)', vals: priceVals, area: true }]} n={priceVals.length} active={pai} onActive={setPat}
+      <LineChart fit series={[{ color: up ? 'var(--mint)' : 'var(--coral)', vals: priceVals, area: true }]} n={priceVals.length} active={pai} onActive={setPat}
         xLabels={[dateLbl(slice![0][0]), 'Now']} label={`${s.ticker} price, ${rangeLabel.toLowerCase()}`} />
       <div className="chips">{RANGES.map(([l], i) => <button key={l} className={'chip ' + (range === i ? 'on' : '')} onClick={() => { setRange(i); setPat(null); }}>{l}</button>)}</div>
     </> : failed ? <div className="card calm"><div style={{ fontWeight: 700 }}>The price chart is warming up</div><p className="hint" style={{ margin: '6px 0 0' }}>History for {s.ticker} appears once the engine serves it. Everything below is live.</p></div>
@@ -935,10 +938,17 @@ function StockPage({ ticker, d, gm, onClose }: { ticker: string; d: ReturnType<t
       <span className="small">10-yr avg return <b className="mint">+{s.avg_return_10y}%/yr</b></span>
       <span className="small">worst drop <b>{s.max_drawdown}%</b></span>
     </div>
-    {shares > 0 && <div className="card" style={{ margin: '12px 0' }}>
-      <div style={{ fontWeight: 700 }}>You own {shares.toFixed(4)} shares</div>
-      <div className="meta" style={{ marginTop: 4 }}>{fmt0(cost)} staked · now {fmt(val)} · <b className={val - cost >= 0 ? 'mint' : ''}>{val - cost >= 0 ? '+' : ''}{fmt(val - cost)}</b></div>
-    </div>}
+    {shares > 0 && <>
+      <div className="gp-sec">Your position</div>
+      <div className="posrows">
+        <div className="posrow"><span>Quantity</span><b>{shares.toFixed(4)}</b></div>
+        <div className="posrow"><span>Market value</span><b>{fmt(val)}</b></div>
+        <div className="posrow"><span>Avg purchase price</span><b>{fmt(cost / shares)}</b></div>
+        {firstBuy && <div className="posrow"><span>First purchase</span><b>{new Date(firstBuy).toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' })}</b></div>}
+        {totalOwned > 0 && <div className="posrow"><span>Share of portfolio</span><b>{Math.round((val / totalOwned) * 100)}%</b></div>}
+        <div className="posrow"><span>All-time</span><b className={val - cost >= 0 ? 'mint' : 'coral'}>{val - cost >= 0 ? '+' : ''}{fmt(val - cost)} ({cost ? Math.abs(((val - cost) / cost) * 100).toFixed(1) : '0.0'}%)</b></div>
+      </div>
+    </>}
     <div className="gp-sec">If it keeps its 10-year average</div>
     <div className="readout">$100 becomes ~<b className="mint"><Roll value={projectSmart(100, s.avg_return_10y, ai)} format={fmt0} /></b> after {ai} {ai === 1 ? 'year' : 'years'}</div>
     <LineChart series={[{ color: 'var(--mint)', vals: curve, area: true }]} n={years + 1} active={ai} onActive={setAt} xLabels={['Now', `${years} yrs`]} label={`Projection of $100 in ${s.ticker} over ${years} years`} />
@@ -951,8 +961,7 @@ function StockPage({ ticker, d, gm, onClose }: { ticker: string; d: ReturnType<t
 const ALLOC = ['var(--mint)', 'var(--peri)', 'var(--gold)', '#E560B6', '#3FB6C9', '#8E8E93'];
 const HORIZONS = [1, 5, 10, 15];
 function Owned({ d, gm, onStock }: { d: ReturnType<typeof useData>; gm: Record<string, Game>; onStock: (t: string) => void }) {
-  const [q, setQ] = useState(''); const [at, setAt] = useState<number | null>(null);
-  const [lane, setLane] = useState(0); const [horizon, setHorizon] = useState(5);
+  const [at, setAt] = useState<number | null>(null); const [horizon, setHorizon] = useState(5);
   const [hide, setHide] = useState(() => localStorage.getItem('ib_hide') === '1');
   const toggleHide = () => { localStorage.setItem('ib_hide', hide ? '0' : '1'); setHide(!hide); };
   const mask = (s: string) => (hide ? '$••••' : s);
@@ -992,14 +1001,12 @@ function Owned({ d, gm, onStock }: { d: ReturnType<typeof useData>; gm: Record<s
   const lostVal = lostPicks.reduce((s, p) => s + (p.shares && d.prices[p.ticker] ? Number(p.shares) * d.prices[p.ticker] : Number(p.stake)), 0);
   const wonPts = Math.round(wonPicks.reduce((s, p) => s + Number(p.points), 0));
 
-  const query = q.trim().toLowerCase();
-  const results = query ? d.stocks.filter(x => x.ticker.toLowerCase().includes(query) || x.name.toLowerCase().includes(query)).sort((a, b) => a.ticker.localeCompare(b.ticker)).slice(0, 20) : [];
   const allocTotal = holdings.reduce((s, h) => s + h.value, 0) + pending.reduce((s, p) => s + Number(p.stake), 0);
 
   return <section className="view">
     <div className="ox-head">
       <div>
-        <div className="ox-label">Owned</div>
+        <div className="ox-label">Invest</div>
         <div className="ox-value"><Roll value={value} format={n2 => mask(fmt(n2))} /></div>
         {mine.length > 0 && <div className={'sp-change ' + (move >= 0 ? 'up' : 'dn')}>
           <b><Symbol name={move >= 0 ? 'uptri' : 'downtri'} size={14} />{mask(fmt(Math.abs(move)))} ({Math.abs(movePct).toFixed(1)}%)</b>
@@ -1008,21 +1015,13 @@ function Owned({ d, gm, onStock }: { d: ReturnType<typeof useData>; gm: Record<s
       </div>
       <button className="back" aria-label={hide ? 'Show amounts' : 'Hide amounts'} onClick={toggleHide}><Symbol name={hide ? 'eyeslash' : 'eye'} size={20} /></button>
     </div>
-    <div className="searchbar" style={{ marginTop: 10 }}><Symbol name="magnifyingglass" size={16} /><input className="search" placeholder="Find a stock" aria-label="Find a stock" value={q} onChange={e => setQ(e.target.value)} /></div>
-
-    {query ? <>
-      <div className="lg-head"><Symbol name="chart" size={16} /><h3>Stocks</h3></div>
-      {results.length ? results.map(x => <StockRow key={x.ticker} s={x} price={d.prices[x.ticker]} onOpen={onStock} />)
-        : <div className="empty"><Symbol name="magnifyingglass" size={48} /><p>Nothing matches "{q.trim()}". Try the ticker or the name.</p></div>}
-      <div className="disc">Alphabetical, never ranked by return. Investibet never recommends a stock.</div>
-    </> : <>
-      {mine.length > 0 ? <>
+    {mine.length > 0 ? <>
         <div className="bleed">
           <WorthChart past={ownedPts} future={future} active={ai} onActive={setAt} endLabel={`≈${mask(fmt0(future[FUT]))}`} />
         </div>
         <div className="chips">{HORIZONS.map(h => <button key={h} className={'chip slim ' + (horizon === h ? 'on' : '')} onClick={() => { setHorizon(h); setAt(null); }}>+{h} {h === 1 ? 'year' : 'years'}</button>)}</div>
         <div className="readout">{ptLabel}: {ai > ti && '~'}{mask(fmt0(aOwn))} {ai > ti && <span className="sub" style={{ display: 'inline' }}>at 10-yr averages</span>}</div>
-        <div className="disc" style={{ marginTop: 6 }}>Solid: what your picks put in, through today. Dashed: a desk-style projection, your stocks' past edge shrunk and faded toward the market's long-run ~8%/yr, on a squeezed scale so both ends fit. Tap to walk it. Hypothetical, never advice.</div>
+        <div className="disc" style={{ marginTop: 6 }}>Dashed: a desk-style projection at your stocks' faded past averages. Tap to walk the line. Hypothetical, never advice.</div>
         <div className="vsbook">
           <div className="vb-t">If this were a sportsbook</div>
           <div className="vb-face">
@@ -1056,13 +1055,26 @@ function Owned({ d, gm, onStock }: { d: ReturnType<typeof useData>; gm: Record<s
           <div className="lg-head"><h3>Buying at next open</h3></div>
           {pending.map(p => <div key={p.id} className="pendrow"><span className="sdisc">{p.ticker.slice(0, 2)}</span><span className="tk">{p.ticker}</span><span className="small" style={{ marginLeft: 'auto' }}>{fmt0(Number(p.stake))} queued</span></div>)}
         </>}
-      </> : <div className="card calm"><div style={{ fontWeight: 700 }}>Nothing owned yet</div><p className="hint" style={{ margin: '6px 0 0' }}>Back a pick on Home. Win or miss, the stake buys stock that shows up here. Browse below to read up on any stock first.</p></div>}
+    </> : <div className="card calm"><div style={{ fontWeight: 700 }}>Nothing invested yet</div><p className="hint" style={{ margin: '6px 0 0' }}>Back a pick on Home. Win or miss, the stake buys stock that shows up here. The Stocks tab has every ticker to read up on first.</p></div>}
+  </section>;
+}
 
-      <div className="lg-head" style={{ marginTop: 20 }}><Symbol name="chart" size={16} /><h3>Browse stocks</h3></div>
-      <div className="chips">{TIERS.map((t, i) => <button key={t} className={'chip ' + (lane === i ? 'on' : '')} onClick={() => setLane(i)}>{t}</button>)}</div>
+/* ---------- stocks tab: Roi's discover. Search lives with the stocks. ---------- */
+function StocksTab({ d, onStock }: { d: ReturnType<typeof useData>; onStock: (t: string) => void }) {
+  const [q, setQ] = useState(''); const [lane, setLane] = useState(0);
+  const query = q.trim().toLowerCase();
+  const results = query ? d.stocks.filter(x => x.ticker.toLowerCase().includes(query) || x.name.toLowerCase().includes(query)).sort((a, b) => a.ticker.localeCompare(b.ticker)).slice(0, 20) : [];
+  return <section className="view">
+    <div className="ox-head"><div><div className="ox-label">Stocks</div></div></div>
+    <div className="searchbar" style={{ marginTop: 8 }}><Symbol name="magnifyingglass" size={16} /><input className="search" placeholder="Find a stock" aria-label="Find a stock" value={q} onChange={e => setQ(e.target.value)} /></div>
+    {query ? <>
+      {results.length ? results.map(x => <StockRow key={x.ticker} s={x} price={d.prices[x.ticker]} onOpen={onStock} />)
+        : <div className="empty"><Symbol name="magnifyingglass" size={48} /><p>Nothing matches "{q.trim()}". Try the ticker or the name.</p></div>}
+    </> : <>
+      <div className="chips" style={{ marginTop: 4 }}>{TIERS.map((t, i) => <button key={t} className={'chip ' + (lane === i ? 'on' : '')} onClick={() => setLane(i)}>{t}</button>)}</div>
       {d.stocks.filter(x => x.tier === lane).sort((a, b) => a.ticker.localeCompare(b.ticker)).map(x => <StockRow key={x.ticker} s={x} price={d.prices[x.ticker]} onOpen={onStock} />)}
-      <div className="disc">Alphabetical within each lane, never ranked by return. Investibet never recommends a stock.</div>
     </>}
+    <div className="disc">Alphabetical, never ranked by return. Investibet never recommends a stock; any pick can be backed with any of these.</div>
   </section>;
 }
 

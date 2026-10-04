@@ -122,6 +122,11 @@ header{display:flex;align-items:center;justify-content:space-between;padding:18p
 .gp-title .at{color:var(--dim);font-size:18px;font-weight:600}
 .gp-kick{display:flex;align-items:center;justify-content:center;gap:6px;font-size:13px;color:var(--muted);margin:8px 0 12px}.gp-kick b{color:var(--gold)}
 .gp-sec{font-size:17px;font-weight:800;letter-spacing:-.02em;margin:18px 0 2px}
+.posrows{margin-bottom:4px}
+.posrow{display:flex;justify-content:space-between;gap:12px;padding:12px 0;border-bottom:1px solid var(--line);font-size:14px}
+.posrow span{color:var(--muted)}
+.posrow b{font-weight:600}
+.posrow b.coral{color:var(--coral)}
 /* Counterfactual hero: two cards face off, then the 5-year number is the headline */
 .tl2{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:12px 0 10px}
 .tlc{position:relative;border-radius:14px;padding:14px;border:1px solid var(--line)}
@@ -188,11 +193,11 @@ header{display:flex;align-items:center;justify-content:space-between;padding:18p
 .stockrow .nm{font-size:12px;color:var(--muted);margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:180px}
 .stockrow .pr{text-align:right;font-weight:700}
 .stockrow .ch{text-align:right;font-size:12px;color:var(--mint);font-weight:600}
-.stockrow .ch.dn{color:var(--muted)}
+.stockrow .ch.dn{color:var(--coral)}
 /* Stock page: Roi's detail anatomy. Big price, change line, full-width chart, range pills. */
 .sp-price{font-size:38px;font-weight:800;letter-spacing:-.04em;margin:10px 0 2px}
 .sp-change{display:flex;align-items:center;gap:6px;font-size:14px;font-weight:600;color:var(--muted)}
-.sp-change.up b{color:var(--mint)}.sp-change.dn b{color:var(--muted)}
+.sp-change.up b{color:var(--mint)}.sp-change.dn b{color:var(--coral)}
 .sp-change b{display:inline-flex;align-items:center;gap:3px}
 /* Tier tags: a little identity color per lane */
 .tag{display:inline-flex;align-items:center;border-radius:999px;padding:4px 12px;font-size:12px;font-weight:700}
@@ -333,12 +338,12 @@ header{display:flex;align-items:center;justify-content:space-between;padding:18p
 .flame{display:inline-flex;align-items:center;gap:3px;font-size:12px;color:var(--gold);font-weight:700;vertical-align:middle}
 .ladder{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}.ladder div{background:var(--bg3);border-radius:12px;padding:10px;text-align:center}.ladder .l{font-size:12px;color:var(--muted)}.ladder .v{font-weight:700;color:var(--mint)}
 /* Floating pill tab bar: liquid glass capsule. Saturated blur, specular top edge, soft drop. */
-nav{position:fixed;bottom:calc(10px + env(safe-area-inset-bottom,0px));left:12px;right:12px;max-width:496px;margin:0 auto;background:linear-gradient(180deg,rgba(255,255,255,.45),rgba(255,255,255,0) 48%),var(--glass);backdrop-filter:blur(26px) saturate(190%);-webkit-backdrop-filter:blur(26px) saturate(190%);border:1px solid var(--glass-edge);border-radius:999px;display:grid;grid-template-columns:repeat(4,1fr);padding:5px;box-shadow:0 10px 32px rgba(23,27,46,.18),inset 0 1.5px 0 rgba(255,255,255,.9),inset 0 -1px 2px rgba(23,27,46,.05);z-index:10;position:fixed;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+nav{position:fixed;bottom:calc(10px + env(safe-area-inset-bottom,0px));left:12px;right:12px;max-width:496px;margin:0 auto;background:linear-gradient(180deg,rgba(255,255,255,.45),rgba(255,255,255,0) 48%),var(--glass);backdrop-filter:blur(26px) saturate(190%);-webkit-backdrop-filter:blur(26px) saturate(190%);border:1px solid var(--glass-edge);border-radius:999px;display:grid;grid-template-columns:repeat(5,1fr);padding:5px;box-shadow:0 10px 32px rgba(23,27,46,.18),inset 0 1.5px 0 rgba(255,255,255,.9),inset 0 -1px 2px rgba(23,27,46,.05);z-index:10;position:fixed;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
 /* The Liquid Glass lens: transparent magnifier. It carries a scaled clone of the tab strip,
    clipped to the capsule, so icons and labels genuinely zoom and slide under the glass. */
-nav .lens{position:absolute;top:5px;bottom:5px;width:calc((100% - 10px) / 4);border-radius:999px;overflow:hidden;background:var(--pill);box-shadow:0 2px 8px rgba(23,27,46,.1),inset 0 1px 0 rgba(255,255,255,.7);transition:left .55s cubic-bezier(.22,1,.36,1),transform .3s cubic-bezier(.22,1,.36,1);will-change:left,transform;z-index:2;pointer-events:none;user-select:none;-webkit-user-select:none}
+nav .lens{position:absolute;top:5px;bottom:5px;width:calc((100% - 10px) / 5);border-radius:999px;overflow:hidden;background:var(--pill);box-shadow:0 2px 8px rgba(23,27,46,.1),inset 0 1px 0 rgba(255,255,255,.7);transition:left .55s cubic-bezier(.22,1,.36,1),transform .3s cubic-bezier(.22,1,.36,1);will-change:left,transform;z-index:2;pointer-events:none;user-select:none;-webkit-user-select:none}
 nav .lens:after{content:"";position:absolute;inset:2px;border-radius:999px;background:radial-gradient(60% 42% at 30% 14%,rgba(255,255,255,.7),transparent 70%);opacity:.35;pointer-events:none;z-index:3}
-nav .lens .mag{position:absolute;top:0;bottom:0;width:400%;display:grid;grid-template-columns:repeat(4,1fr);transition:left .55s cubic-bezier(.22,1,.36,1);will-change:left}
+nav .lens .mag{position:absolute;top:0;bottom:0;width:500%;display:grid;grid-template-columns:repeat(5,1fr);transition:left .55s cubic-bezier(.22,1,.36,1);will-change:left}
 nav .lens .mg{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;font-size:11px;font-weight:800;color:var(--mint);transform:scale(1.04);transition:transform .3s cubic-bezier(.22,1,.36,1)}
 nav .lens.drag{transform:scale(1.07) translateY(-2px)}
 nav .lens.drag .mg{transform:scale(1.1)}
