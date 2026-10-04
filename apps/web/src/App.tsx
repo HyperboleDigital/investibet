@@ -92,9 +92,17 @@ function LineChart({ series, n, active, onActive, xLabels, label, fit }: {
   const x = (i: number) => L + (n > 1 ? (i * (W - L - R)) / (n - 1) : 0);
   const y = (v: number) => T + (1 - (v - min) / (max - min)) * (H - T - B);
   const pts = (vals: number[]) => vals.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' ');
-  const colW = (W - L - R) / Math.max(1, n - 1);
   const base = fit ? H - B : y(0);
-  return <svg viewBox={`0 0 ${W} ${H}`} width="100%" role="img" aria-label={label} style={{ display: 'block', touchAction: 'pan-y' }}>
+  const pickIdx = (clientX: number, svg: SVGSVGElement) => {
+    const r = svg.getBoundingClientRect();
+    const fx = ((clientX - r.left) / r.width) * W;
+    return Math.max(0, Math.min(n - 1, Math.round(((fx - L) * (n - 1)) / (W - L - R))));
+  };
+  return <svg viewBox={`0 0 ${W} ${H}`} width="100%" role="img" aria-label={label} style={{ display: 'block', touchAction: 'pan-y' }}
+    onTouchStart={e => onActive(pickIdx(e.touches[0].clientX, e.currentTarget))}
+    onTouchMove={e => onActive(pickIdx(e.touches[0].clientX, e.currentTarget))}
+    onMouseDown={e => onActive(pickIdx(e.clientX, e.currentTarget))}
+    onMouseMove={e => { if (e.buttons === 1) onActive(pickIdx(e.clientX, e.currentTarget)); }}>
     {[0.25, 0.5, 0.75].map(f => <line key={f} x1={L} x2={W - R} y1={T + f * (H - T - B)} y2={T + f * (H - T - B)} stroke="var(--line)" strokeWidth="1" />)}
     {!fit && <line x1={L} x2={W - R} y1={base} y2={base} stroke="var(--line)" strokeWidth="1.5" />}
     {series.map((s, si) => <g key={si}>
@@ -102,7 +110,6 @@ function LineChart({ series, n, active, onActive, xLabels, label, fit }: {
       <polyline points={pts(s.vals)} fill="none" stroke={s.color} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" strokeDasharray={s.dash ? '5 4' : undefined} />
       <circle cx={x(active)} cy={y(s.vals[active])} r="4.5" fill={s.color} stroke="#fff" strokeWidth="2" />
     </g>)}
-    {Array.from({ length: n }, (_, i) => <rect key={i} x={x(i) - colW / 2} y={0} width={colW} height={H} fill="transparent" onPointerDown={() => onActive(i)} onPointerEnter={() => onActive(i)} />)}
     <text x={L} y={H - 6} fontSize="10" fill="var(--dim)">{xLabels[0]}</text>
     <text x={W - R} y={H - 6} fontSize="10" fill="var(--dim)" textAnchor="end">{xLabels[1]}</text>
   </svg>;
@@ -126,8 +133,16 @@ function WorthChart({ past, future, active, onActive, endLabel }: {
   const x = (i: number) => (N > 1 ? (i * (W - R)) / (N - 1) : 0);
   const pts = (vals: number[], from = 0) => vals.map((v, i) => `${x(i + from).toFixed(1)},${y(v).toFixed(1)}`).join(' ');
   const ti = past.length - 1; // today
-  const colW = (W - R) / Math.max(1, N - 1);
-  return <svg viewBox={`0 0 ${W} ${H}`} width="100%" role="img" aria-label="What you own, past and projected" style={{ display: 'block', touchAction: 'pan-y' }}>
+  const pickIdx = (clientX: number, svg: SVGSVGElement) => {
+    const r = svg.getBoundingClientRect();
+    const fx = ((clientX - r.left) / r.width) * W;
+    return Math.max(0, Math.min(N - 1, Math.round((fx * (N - 1)) / (W - R))));
+  };
+  return <svg viewBox={`0 0 ${W} ${H}`} width="100%" role="img" aria-label="What you own, past and projected" style={{ display: 'block', touchAction: 'pan-y' }}
+    onTouchStart={e => onActive(pickIdx(e.touches[0].clientX, e.currentTarget))}
+    onTouchMove={e => onActive(pickIdx(e.touches[0].clientX, e.currentTarget))}
+    onMouseDown={e => onActive(pickIdx(e.clientX, e.currentTarget))}
+    onMouseMove={e => { if (e.buttons === 1) onActive(pickIdx(e.clientX, e.currentTarget)); }}>
     <defs><linearGradient id={`wg${uid}`} x1="0" y1="0" x2="1" y2="0">
       <stop offset="0" stopColor="var(--peri)" /><stop offset="1" stopColor="var(--mint)" />
     </linearGradient></defs>
@@ -138,7 +153,6 @@ function WorthChart({ past, future, active, onActive, endLabel }: {
     <circle cx={x(active)} cy={y(comb[Math.min(active, N - 1)])} r="4.5" fill={active > ti ? 'var(--mint)' : 'var(--peri)'} stroke="#fff" strokeWidth="2" opacity={active === ti ? 0 : 1} />
     {future.length > 1 && <circle cx={x(N - 1)} cy={y(comb[N - 1])} r="3.5" fill="#fff" stroke="var(--mint)" strokeWidth="2" />}
     <text x={W - 10} y={Math.min(y(comb[N - 1]) + 40, H - 18)} textAnchor="end" fontSize="12.5" fontWeight="800" fill="var(--mint)">{endLabel}</text>
-    {Array.from({ length: N }, (_, i) => <rect key={i} x={x(i) - colW / 2} y={0} width={colW} height={H} fill="transparent" onPointerDown={() => onActive(i)} onPointerEnter={() => onActive(i)} />)}
   </svg>;
 }
 
