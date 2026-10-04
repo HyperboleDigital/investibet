@@ -563,7 +563,7 @@ function Slip({ d, legs, stake, setStake, onRemove, onClose, onLocked, say, brok
   const [tier, setTier] = useState(0); const [q, setQ] = useState(''); const [busy, setBusy] = useState(false);
   const open = legs.length > 0;
   useLockBody(open);
-  useEffect(() => { if (open) { setStep(1); setTicker(null); setQ(''); setTier(0); setRaw(stake > 0 ? String(stake) : '20'); } }, [open]); // eslint-disable-line
+  useEffect(() => { if (open) { setStep(1); setTicker(null); setQ(''); setTier(0); setRaw(''); } }, [open]); // eslint-disable-line
   if (!open) return <><div className="scrim" /><div className="sheet" /></>;
   const single = legs.length === 1 ? legs[0] : null;
   const combined = stackOdds(legs.map(x => x.line.price));
@@ -581,7 +581,7 @@ function Slip({ d, legs, stake, setStake, onRemove, onClose, onLocked, say, brok
   const s = d.stocks.find(x => x.ticker === ticker);
   const list = d.stocks.filter(x => q ? x.ticker.toLowerCase().includes(q.toLowerCase()) || x.name.toLowerCase().includes(q.toLowerCase()) : x.tier === tier).sort((a, b) => a.ticker.localeCompare(b.ticker));
   const lock = async () => {
-    if (!single || !ticker || stakeN < 1) return;
+    if (!single || !ticker || stakeN < 2) return;
     if (!brokerConnected) return onNeedBroker();
     setBusy(true); localStorage.setItem('ib_stake', String(stakeN));
     const { error } = await sb.rpc('lock_pick', { p_game_id: single.game.id, p_market: single.line.market, p_selection: single.line.selection, p_stake: stakeN, p_ticker: ticker });
@@ -609,14 +609,14 @@ function Slip({ d, legs, stake, setStake, onRemove, onClose, onLocked, say, brok
         </div>)}</div>
       </>}
       <div className="se" style={{ marginTop: 16 }}>
-        <div><div className="l">Stake</div><div className="sx">{'$' + (raw === '' ? '0' : raw)}</div></div>
+        <div><div className="l">Stake</div><div className={'sx' + (raw === '' ? ' empty' : '')}>{'$' + (raw === '' ? '0' : raw)}</div></div>
         <div><div className="l">Earns</div><div className="v mint">{points} pts</div><div className="small" style={{ marginTop: 2 }}>plus the stock, win or miss</div></div>
       </div>
       <div className="disc" style={{ marginTop: 6 }}>Hit the pick and the points are yours, same at any stake. Streaks of 3 and 5 multiply them.</div>
       <div className="quickadd">{[5, 10, 25].map(v => <button key={v} onClick={() => add(v)}>+${v}</button>)}</div>
       <div className="numpad">{['1', '2', '3', '4', '5', '6', '7', '8', '9', '.', '0', '<'].map(k =>
         <button key={k} aria-label={k === '<' ? 'Delete' : k} onClick={() => push(k)}>{k === '<' ? <Symbol name="backspace" size={22} /> : k}</button>)}</div>
-      {single ? <button className="btn" disabled={stakeN < 1} onClick={() => setStep(2)}>{stakeN >= 1 ? `Continue · ${fmt0(stakeN)} picks the stock` : 'Enter a stake, $1 or more'}</button>
+      {single ? <button className="btn" disabled={stakeN < 2} onClick={() => setStep(2)}>{stakeN >= 2 ? 'Continue to pick your stock' : 'Enter a stake, $2 minimum'}</button>
         : <>
           <button className="btn" disabled>Stacks lock in the next build</button>
           <div className="disc">One stake, one stock, every leg must hit. For now, trim to one leg to lock a single pick.</div>
@@ -642,7 +642,16 @@ function Slip({ d, legs, stake, setStake, onRemove, onClose, onLocked, say, brok
         <div className="tc"><div className="l">Miss</div><div className="v">keep {fmt0(stakeN)}</div><div className="s">the stock stays yours</div></div>
         <div className="tc futc"><div className="l">In 5 years</div><div className={'v' + (s ? ' grad' : '')}>{s ? '~' + fmt0(projectSmart(stakeN, s.avg_return_10y, 5)) : 'pick one'}</div><div className="s">at past averages, faded</div></div>
       </div>
-      <button className="btn" disabled={!ticker || busy} onClick={lock}>{busy ? 'Locking…' : !brokerConnected && ticker ? 'Connect brokerage to lock' : ticker ? `Lock ${fmt0(stakeN)} on ${single.line.selection.split('|')[0]} → ${ticker}` : 'Pick a stock to lock'}</button>
+      {s && <div className="receipt">
+        <div className="rc-h">Investibet · your slip</div>
+        <div className="rc-r"><span>Pick</span><b>{legLabel(single.line)} {oddsTxt(single.line.price)}</b></div>
+        <div className="rc-r"><span>Stake</span><b>{fmt0(stakeN)}</b></div>
+        <div className="rc-r"><span>Buys</span><b>{s.ticker} · {s.name}</b></div>
+        <div className="rc-d" />
+        <div className="rc-r"><span>Hits</span><b className="mint">{points} pts + the stock</b></div>
+        <div className="rc-r"><span>Misses</span><b>{fmt0(stakeN)} of {s.ticker}, still yours</b></div>
+      </div>}
+      <button className="btn" disabled={!ticker || busy} onClick={lock}>{busy ? 'Locking…' : !brokerConnected && ticker ? 'Connect brokerage to lock' : ticker ? 'Lock it in' : 'Pick a stock to lock'}</button>
       <div className="disc">Odds lock now. During beta the buy is simulated at the next market price. Lines are approximate 10-year averages and worst peak-to-trough drops. Not advice.</div>
     </>}
   </div></>;

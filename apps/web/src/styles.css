@@ -101,6 +101,7 @@ header{display:flex;align-items:center;justify-content:space-between;padding:18p
 .livetag .ld{width:7px;height:7px;border-radius:50%;background:var(--gold);animation:pulse 1.6s ease-out infinite}
 /* Game page market sections: Hard Rock's collapsible blocks with the Stack badge */
 .msec{border-top:1px solid var(--line);margin-top:6px}
+.game + .msec{border-top:0}
 .msec-h{width:100%;display:flex;align-items:center;gap:10px;min-height:54px;text-align:left}
 .msec-h .t{font-size:17px;font-weight:800;letter-spacing:-.02em;flex:1}
 .stackb{background:var(--peri2);color:var(--peri);border-radius:999px;padding:3px 10px;font-size:11px;font-weight:800;letter-spacing:.04em}
@@ -239,6 +240,14 @@ header{display:flex;align-items:center;justify-content:space-between;padding:18p
 .sheet{position:fixed}
 .sheet-x{position:absolute;top:12px;right:14px;width:36px;height:36px;min-height:36px;border-radius:50%;background:var(--bg3);display:inline-flex;align-items:center;justify-content:center;color:var(--muted);z-index:2}
 .sx{font-size:32px;font-weight:800;letter-spacing:-.03em;display:inline-block;min-width:88px;border-bottom:2.5px solid var(--peri);padding-bottom:2px;margin-top:2px}
+.sx.empty{color:var(--dim)}
+/* Receipt: the slip summary, perforated and simple */
+.receipt{border:1.5px dashed var(--line);border-radius:12px;padding:12px 14px;margin:2px 0 12px;background:var(--bg2)}
+.rc-h{text-align:center;font-size:10px;font-weight:800;letter-spacing:.18em;text-transform:uppercase;color:var(--dim);margin-bottom:8px}
+.rc-r{display:flex;justify-content:space-between;gap:12px;font-size:13px;color:var(--muted);padding:3px 0}
+.rc-r b{color:var(--ink);font-weight:700;text-align:right;min-width:0}
+.rc-r b.mint{color:var(--mint)}
+.rc-d{border-top:1.5px dashed var(--line);margin:8px -14px}
 .quickadd{display:flex;justify-content:space-around;margin:8px 0 2px}
 .quickadd button{color:var(--peri);font-weight:800;font-size:17px;min-height:42px;padding:0 16px;border-radius:10px}
 .quickadd button:active{background:var(--peri2)}
