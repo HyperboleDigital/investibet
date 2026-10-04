@@ -319,8 +319,8 @@ function Shell({ session }: { session: Session }) {
           <span className="mg"><span className="avatar">{initialsOf(d.profile?.display_name ?? 'You')}</span>Profile</span>
         </span>
       </i>
-      {TABS.map(([k, l, ic]) => <button key={k} className={tab === k && !stockOpen ? 'on' : ''} aria-label={l} onClick={() => go(k)}><Symbol name={ic} size={22} />{l}</button>)}
-      <button className={tab === 'profile' && !stockOpen ? 'on' : ''} aria-label="Profile" onClick={() => go('profile')}>
+      {TABS.map(([k, l, ic]) => <button key={k} className={tab === k && !stockOpen && !lensDrag ? 'on' : ''} aria-label={l} onClick={() => go(k)}><Symbol name={ic} size={22} />{l}</button>)}
+      <button className={tab === 'profile' && !stockOpen && !lensDrag ? 'on' : ''} aria-label="Profile" onClick={() => go('profile')}>
         <span className="avatar">{initialsOf(d.profile?.display_name ?? 'You')}{!d.broker?.connected && <i className="dot" />}</span>Profile
       </button>
     </nav>
