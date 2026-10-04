@@ -270,7 +270,9 @@ header{display:flex;align-items:center;justify-content:space-between;padding:18p
 .disc{font-size:12px;color:var(--dim);line-height:1.4;margin-top:10px}
 /* Pick cards: Hard Rock's My Bets card, ours. The whole card opens the detail sheet. */
 .pick{display:block;width:100%;text-align:left;padding:14px;border-radius:12px;background:var(--bg2);border:1px solid var(--line);margin:10px 0}
-.pick.lost{border-color:var(--line)}
+/* Missed card, the reference's lost treatment in our words: coral edge, filled chip, the stock line carries the consolation */
+.pick.lost{border-color:var(--line);position:relative;overflow:hidden}
+.pick.lost:before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--coral)}
 /* Won pick card: the dopamine card. Mint fills the whole surface, sweeps in, white type, dark score strip. */
 .pick.won{background:linear-gradient(170deg,#19B37B,#0E9A66);border-color:transparent;color:#fff;position:relative;overflow:hidden;animation:winin .6s cubic-bezier(.2,.9,.3,1.2)}
 .pick.won .side,.pick.won .se .v,.pick.won .odds-acc{color:#fff}
@@ -307,7 +309,7 @@ header{display:flex;align-items:center;justify-content:space-between;padding:18p
 .pick.tap{cursor:pointer}
 .tbadge{display:inline-flex;align-items:center;justify-content:center;background:var(--coral);color:#fff;border-radius:999px;font-size:11px;font-weight:800;min-width:18px;height:18px;padding:0 5px;margin-left:6px}
 .res{font-weight:700;font-size:13px;padding:5px 11px;border-radius:999px;background:rgba(23,27,46,.05);flex:none}
-.res.w{color:#fff;background:var(--mint)}.res.l{color:var(--muted)}.res.p{color:var(--gold);background:var(--gold2)}
+.res.w{color:#fff;background:var(--mint)}.res.l{color:#fff;background:var(--coral)}.res.p{color:var(--gold);background:var(--gold2)}
 .pot{background:var(--wash-party),var(--bg2);border:1px solid var(--line);border-radius:12px;padding:16px;margin:12px 0}
 .pot .big{font-size:36px;font-weight:800;letter-spacing:-.04em}
 .lrow{display:grid;grid-template-columns:32px 1fr auto auto;gap:10px;align-items:center;padding:12px 10px;min-height:48px;border-radius:12px;margin:4px 0}

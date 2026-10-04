@@ -686,7 +686,7 @@ const statusChip = (p: Pick, live: boolean) =>
   : p.status === 'lost' ? <span className="res l">Missed</span>
   : <span className="res p">{p.status === 'push' ? 'Push' : 'Void'}</span>;
 const earnsTxt = (p: Pick) =>
-  p.status === 'won' ? `${Math.round(p.points)} pts` : p.status === 'pending' ? `${basePoints(p.odds)} pts` : '0 pts';
+  p.status === 'won' ? `${Math.round(p.points)} pts` : p.status === 'pending' ? `${basePoints(p.odds)} pts` : p.status === 'lost' ? '—' : '0 pts';
 const isLive = (p: Pick, g: Game) => p.status === 'pending' && !g.completed && new Date(g.commence_time) <= new Date();
 
 function ScoreStrip({ g, teams }: { g: Game; teams: Record<string, TeamInfo> }) {
@@ -719,7 +719,7 @@ const sharePick = async (p: Pick, g: Game, say: (m: string) => void) => {
 };
 
 function Picks({ d, gm, say, onEvent }: { d: ReturnType<typeof useData>; gm: Record<string, Game>; say: (m: string) => void; onEvent: (gid: string) => void }) {
-  const [tab, setTab] = useState<'all' | 'upcoming' | 'live' | 'finished' | 'won'>('all');
+  const [tab, setTab] = useState<'all' | 'upcoming' | 'live' | 'finished' | 'won' | 'missed'>('all');
   const [selId, setSelId] = useState<string | null>(null);
   const all = d.picks.filter(p => gm[p.game_id]);
   const lists: Record<typeof tab, Pick[]> = {
@@ -728,6 +728,7 @@ function Picks({ d, gm, say, onEvent }: { d: ReturnType<typeof useData>; gm: Rec
     live: all.filter(p => isLive(p, gm[p.game_id])),
     finished: all.filter(p => p.status !== 'pending'),
     won: all.filter(p => p.status === 'won'),
+    missed: all.filter(p => p.status === 'lost'),
   };
   const list = lists[tab];
   const EMPTY: Record<typeof tab, string> = {
@@ -736,10 +737,11 @@ function Picks({ d, gm, say, onEvent }: { d: ReturnType<typeof useData>; gm: Rec
     live: 'No picks in play right now.',
     finished: 'Nothing settled yet. Results land here when games go final.',
     won: 'No wins yet. The first one turns this screen green.',
+    missed: 'No misses yet. When one lands, the stake still bought the stock.',
   };
   const sel = selId ? all.find(p => p.id === selId) ?? null : null;
   return <section className="view"><h2 style={{ fontSize: 22 }}>Picks</h2>
-    <div className="tabs">{([['all', 'All'], ['upcoming', 'Upcoming'], ['live', 'Live'], ['finished', 'Finished'], ['won', 'Won']] as const).map(([k, l]) =>
+    <div className="tabs">{([['all', 'All'], ['upcoming', 'Upcoming'], ['live', 'Live'], ['finished', 'Finished'], ['won', 'Won'], ['missed', 'Missed']] as const).map(([k, l]) =>
       <button key={k} className={tab === k ? 'on' : ''} onClick={() => setTab(k)}>{l}{k === 'live' && lists.live.length > 0 && <span className="tbadge">{lists.live.length}</span>}</button>)}</div>
     {!list.length ? <div className="empty"><Symbol name="ticket" size={56} /><p>{EMPTY[tab]}</p></div>
       : list.map(p => { const g = gm[p.game_id]; const won = p.status === 'won'; const live = isLive(p, g); const { day, time } = kickoffLabel(new Date(g.commence_time));
