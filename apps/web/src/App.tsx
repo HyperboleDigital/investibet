@@ -851,7 +851,7 @@ function Picks({ d, gm, say, onEvent }: { d: ReturnType<typeof useData>; gm: Rec
             {!live && <div className="meta">{g.away} @ {g.home}</div>}</div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 'none' }}><span className="odds-acc" style={{ fontSize: 17 }}>{oddsTxt(p.odds)}</span>{!won && !live && statusChip(p, live)}</div></div>
           <div className="se"><div><div className="l">Stake</div><div className="v">{fmt0(Number(p.stake))}</div></div><div><div className="l">Earns</div><div className="v">{earnsTxt(p)}</div>
-            {won && Number(p.points) > basePoints(p.odds) * 1.01 && <div className="boost"><Flame size={13} streak={3} />{fmtMult(Number(p.points) / basePoints(p.odds))} streak boost</div>}</div></div>
+            {won && Number(p.points) > basePoints(p.odds) * 1.01 && <div className="boost"><Flame size={19} streak={3} />{fmtMult(Number(p.points) / basePoints(p.odds))} streak boost</div>}</div></div>
           {live ? <ScoreBand g={g} teams={d.teams} state="live" onEvent={() => onEvent(g.id)} />
             : won && g.completed ? <ScoreStrip g={g} teams={d.teams} />
             : g.completed ? <ScoreBand g={g} teams={d.teams} state="final" />
@@ -901,7 +901,7 @@ function PickSheet({ p, g, d, say, onClose, onEvent }: { p: Pick | null; g: Game
       <div className="se"><div><div className="l">Stake</div><div className="v">{fmt0(Number(p.stake))}</div></div><div><div className="l">Earns</div><div className="v">{earnsTxt(p)}</div></div></div>
       {live ? <ScoreBand g={g} teams={d.teams} state="live" onEvent={() => onEvent(g.id)} /> : g.completed ? <ScoreBand g={g} teams={d.teams} state="final" /> : null}
     </>}
-    {won && Number(p.points) > basePoints(p.odds) * 1.01 && <div className="boost" style={{ marginTop: 8 }}><Flame size={14} streak={3} />{basePoints(p.odds)} base {fmtMult(Number(p.points) / basePoints(p.odds))} streak boost</div>}
+    {won && Number(p.points) > basePoints(p.odds) * 1.01 && <div className="boost" style={{ marginTop: 8 }}><Flame size={19} streak={3} />{basePoints(p.odds)} base {fmtMult(Number(p.points) / basePoints(p.odds))} streak boost</div>}
     <div className="card" style={{ margin: '14px 0 10px' }}>
       <div style={{ fontWeight: 700 }}>{p.ticker}{stock ? ` · ${stock.name}` : ''}</div>
       <div className="meta" style={{ marginTop: 6 }}>{p.filled_at ? `Bought ${Number(p.shares).toFixed(4)} shares at ${fmt(Number(p.fill_price))}` : `${fmt0(Number(p.stake))} buys at the next market open`}</div>
