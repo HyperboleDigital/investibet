@@ -216,8 +216,10 @@ app.get('/history/:ticker', async (req, res) => {
 // ESPN lines: 6 leagues x 8 days = 48 free calls per run. Odds API lines: 3 credits per league per run.
 cron.schedule(LINES_SOURCE === 'espn' ? '20 * * * *' : '0 */6 * * *', ingestOdds);
 cron.schedule('*/5 * * * *', async () => { await ingestScores(); await settle(); }); // only calls ESPN when a game is live
-cron.schedule('*/15 13-21 * * 1-5', fillPending);                           // during market hours (UTC), fill queued buys
-cron.schedule('5 21 * * 1-5', refreshPrices);                               // after close
+// During market hours: fresh Stooq prices every 15 minutes, then fill queued buys at them.
+// Monday 13:30 UTC (9:30 ET) is when weekend picks become real simulated positions.
+cron.schedule('*/15 13-21 * * 1-5', async () => { await refreshPrices(); await fillPending(); });
+cron.schedule('5 21 * * 1-5', refreshPrices);                               // one more after close
 const teamsJob = () => importTeams(sb, LINES_SOURCE === 'oddsapi' ? fetchParticipants : null);
 cron.schedule('0 4 * * 1', teamsJob);                                        // weekly: new aliases only
 

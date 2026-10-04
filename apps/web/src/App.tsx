@@ -1023,16 +1023,18 @@ function Owned({ d, gm, onStock }: { d: ReturnType<typeof useData>; gm: Record<s
         <div className="disc" style={{ marginTop: 6 }}>Solid: what your picks put in, through today. Dashed: a desk-style projection, your stocks' past edge shrunk and faded toward the market's long-run ~8%/yr, on a squeezed scale so both ends fit. Tap to walk it. Hypothetical, never advice.</div>
         <div className="vsbook">
           <div className="vb-t">If this were a sportsbook</div>
-          {keptNow > 0.005 ? <>
-            <div className="vb-big">-{fmt(keptNow)}</div>
-            <div className="sub">of your stakes would be gone by now. Here that money stayed yours, inside the {mask(fmt0(value))} you own.</div>
-          </> : keptNow < -0.005 ? <>
-            <div className="vb-big plus">+{fmt(-keptNow)}</div>
-            <div className="sub">a book would be paying you so far. The difference here: you also still own every dollar you staked.</div>
-          </> : <>
-            <div className="vb-big">$0</div>
-            <div className="sub">nothing settled yet. At a book a missed pick is gone; here it buys the stock anyway.</div>
-          </>}
+          <div className="vb-face">
+            <div className="vb-cell book">
+              <div className="l">{keptNow >= -0.005 ? 'Gone to the book by now' : 'A book would be up'}</div>
+              <div className="v">{keptNow > 0.005 ? `-${fmt(keptNow)}` : keptNow < -0.005 ? `+${fmt(-keptNow)}` : '$0'}</div>
+              <div className="s">{keptNow > 0.005 ? 'kept from your stakes' : keptNow < -0.005 ? 'paying you, for now' : 'nothing settled yet'}</div>
+            </div>
+            <div className="vb-cell you">
+              <div className="l">Invested instead</div>
+              <div className="v">{mask(fmt0(staked))}</div>
+              <div className="s">worth {mask(fmt0(value))} today, all still yours</div>
+            </div>
+          </div>
           {(lostPicks.length > 0 || wonPicks.length > 0 || pendingPicks.length > 0) && <div className="vb-rows">
             {lostPicks.length > 0 && <div className="vb-li"><b>{lostPicks.length} missed</b> · a book keeps <b className="coral">{fmt0(lostStake)}</b> · here you own <b className="mint">{fmt0(lostVal)}</b> of that stock</div>}
             {wonPicks.length > 0 && <div className="vb-li"><b>{wonPicks.length} won</b> · a book pays {fmt0(wonPay)} cash · here: <b className="mint">{wonPts} pts</b> toward the pot, and the stock stays</div>}

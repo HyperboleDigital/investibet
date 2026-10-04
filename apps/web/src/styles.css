@@ -162,8 +162,15 @@ header{display:flex;align-items:center;justify-content:space-between;padding:18p
 /* If this were a sportsbook: one loud number, then the receipts */
 .vsbook{background:var(--coral2),var(--bg2);background:linear-gradient(0deg,rgba(232,80,58,.06),rgba(232,80,58,.06)),var(--bg2);border:1px solid var(--line);border-radius:14px;padding:14px 16px;margin:14px 0 4px}
 .vsbook .vb-t{font-weight:800;font-size:15px;letter-spacing:-.02em}
-.vb-big{font-size:34px;font-weight:800;letter-spacing:-.04em;color:var(--coral);margin:4px 0 2px}
-.vb-big.plus{color:var(--ink)}
+.vb-face{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:10px 0 2px}
+.vb-cell{border-radius:12px;padding:12px;border:1px solid var(--line)}
+.vb-cell .l{font-size:12px;font-weight:700;color:var(--muted)}
+.vb-cell .v{font-size:25px;font-weight:800;letter-spacing:-.03em;margin-top:3px}
+.vb-cell .s{font-size:11.5px;color:var(--muted);margin-top:4px;line-height:1.35}
+.vb-cell.book{background:var(--coral2);border-color:rgba(232,80,58,.25)}
+.vb-cell.book .v{color:var(--coral)}
+.vb-cell.you{background:var(--mint2);border-color:rgba(15,163,110,.3)}
+.vb-cell.you .v{color:var(--mint)}
 .vsbook .sub{font-size:12.5px;color:var(--muted);line-height:1.45}
 .vb-rows{margin-top:12px}
 .vb-li{font-size:13px;color:var(--muted);padding:8px 0;border-top:1px solid var(--line);line-height:1.45}
