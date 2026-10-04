@@ -313,8 +313,8 @@ function Shell({ session }: { session: Session }) {
       onPointerMove={e => { if (lensDrag) setLensI(idxFromX(e.clientX)); }}
       onPointerUp={e => { if (lensDrag) { setLensDrag(false); go(NAV_ORDER[idxFromX(e.clientX)]); } }}
       onPointerCancel={() => { setLensDrag(false); setLensI(NAV_ORDER.indexOf(tab)); }}>
-      <i className={'lens' + (lensDrag ? ' drag' : '')} style={{ left: `calc(${lensI * 25}% + 5px)` }} aria-hidden="true">
-        <span className="mag" style={{ left: `calc(${-lensI} * (100% + 10px))` }}>
+      <i className={'lens' + (lensDrag ? ' drag' : '')} style={{ left: `calc(5px + ${lensI} * ((100% - 10px) / 4))` }} aria-hidden="true">
+        <span className="mag" style={{ left: `${-lensI * 100}%` }}>
           {TABS.map(([k, l, ic]) => <span className="mg" key={k}><Symbol name={ic} size={22} />{l}</span>)}
           <span className="mg"><span className="avatar">{initialsOf(d.profile?.display_name ?? 'You')}</span>Profile</span>
         </span>

@@ -1,6 +1,6 @@
 :root{
   --bg:#F2F3F7;--bg2:#FFFFFF;--bg3:#ECEDF2;--line:#E2E4EC;
-  --ink:#171B2E;--muted:#6F7590;--dim:#9CA1B6;
+  --ink:#171B2E;--muted:#5F6680;--dim:#7E8499;
   --mint:#0FA36E;--mint2:rgba(15,163,110,.10);
   --coral:#E8503A;--coral2:rgba(232,80,58,.10);
   --gold:#C08A14;--gold2:rgba(192,138,20,.12);
@@ -17,7 +17,7 @@ html{height:100%;scroll-padding-top:env(safe-area-inset-top,0px);-webkit-text-si
 /* Dark theme, Hard Rock's register: near-black canvas, the same semantic tokens */
 :root[data-theme="dark"]{
   --bg:#0D0F14;--bg2:#161922;--bg3:#1F232E;--line:#2A2F3B;
-  --ink:#EEF0F6;--muted:#9AA0B2;--dim:#697083;
+  --ink:#EEF0F6;--muted:#A6ACBE;--dim:#7B8296;
   --mint:#4FE3A8;--mint2:rgba(79,227,168,.14);
   --coral:#FF6B5B;--coral2:rgba(255,107,91,.14);
   --gold:#F5C451;--gold2:rgba(245,196,81,.16);
@@ -33,7 +33,7 @@ html{height:100%;scroll-padding-top:env(safe-area-inset-top,0px);-webkit-text-si
 :root[data-theme="dark"] .btn:not(.ghost):not(.danger){color:#0D0F14}
 :root[data-theme="dark"] nav{box-shadow:0 10px 32px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.08)}
 :root[data-theme="dark"] nav{background:linear-gradient(180deg,rgba(255,255,255,.08),rgba(255,255,255,0) 48%),var(--glass)}
-:root[data-theme="dark"] nav .lens{background:rgba(34,38,50,.8);box-shadow:0 4px 16px rgba(0,0,0,.45),inset 0 1px 0 rgba(255,255,255,.18)}
+:root[data-theme="dark"] nav .lens{background:rgba(36,40,54,.96);box-shadow:0 4px 16px rgba(0,0,0,.45),inset 0 1px 0 rgba(255,255,255,.18)}
 :root[data-theme="dark"] nav .lens:before{opacity:.5}
 :root[data-theme="dark"] nav .lens:after{opacity:.16}
 :root[data-theme="dark"] .seg button.on,:root[data-theme="dark"] .hzp button.on{background:#2E3340;color:var(--ink);box-shadow:none}
@@ -128,7 +128,7 @@ header{display:flex;align-items:center;justify-content:space-between;padding:18p
 .tlc{position:relative;border-radius:14px;padding:14px;border:1px solid var(--line)}
 .tlc .l{font-size:12px;font-weight:700;color:var(--muted)}
 .tlc .v{font-size:27px;font-weight:800;letter-spacing:-.03em;margin-top:4px}
-.tlc .s{font-size:11.5px;color:var(--muted);margin-top:5px;line-height:1.35}
+.tlc .s{font-size:12px;color:var(--muted);margin-top:5px;line-height:1.35}
 .tlc.you{background:var(--mint2);border-color:rgba(15,163,110,.3)}
 .tlc.you .v{color:var(--mint)}
 .tlc.book{background:var(--coral2);border-color:rgba(232,80,58,.25)}
@@ -203,7 +203,7 @@ header{display:flex;align-items:center;justify-content:space-between;padding:18p
 .readout .sub{font-size:12px;color:var(--muted);font-weight:400;margin-top:3px}
 .legend{display:flex;gap:16px;align-items:center;font-size:12px;color:var(--muted);margin-top:8px;flex-wrap:wrap}
 .legend .dt{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:5px}
-.mhead{display:grid;grid-template-columns:minmax(96px,1.1fr) repeat(3,1fr);gap:3px;font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--dim);text-align:center;margin:14px 0 2px}
+.mhead{display:grid;grid-template-columns:minmax(96px,1.1fr) repeat(3,1fr);gap:3px;font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--dim);text-align:center;margin:14px 0 2px}
 .mhead span:first-child{text-align:left}
 .mrow{display:grid;grid-template-columns:minmax(96px,1.1fr) repeat(3,1fr);gap:3px;align-items:stretch;margin:3px 0}
 /* Team row, Hard Rock's: plain name, score chip in its own aligned slot, no logos or discs */
@@ -248,7 +248,7 @@ header{display:flex;align-items:center;justify-content:space-between;padding:18p
 .sx.empty{color:var(--dim)}
 /* Receipt: the slip summary, perforated and simple */
 .receipt{border:1.5px dashed var(--line);border-radius:12px;padding:12px 14px;margin:2px 0 12px;background:var(--bg2)}
-.rc-h{text-align:center;font-size:10px;font-weight:800;letter-spacing:.18em;text-transform:uppercase;color:var(--dim);margin-bottom:8px}
+.rc-h{text-align:center;font-size:11px;font-weight:800;letter-spacing:.18em;text-transform:uppercase;color:var(--dim);margin-bottom:8px}
 .rc-r{display:flex;justify-content:space-between;gap:12px;font-size:13px;color:var(--muted);padding:3px 0}
 .rc-r b{color:var(--ink);font-weight:700;text-align:right;min-width:0}
 .rc-r b.mint{color:var(--mint)}
@@ -267,7 +267,7 @@ header{display:flex;align-items:center;justify-content:space-between;padding:18p
 .tc .l{font-size:11px;font-weight:700;color:var(--muted)}
 .tc .v{font-size:16.5px;font-weight:800;letter-spacing:-.02em;margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .tc .v.grad{background:linear-gradient(90deg,var(--peri),var(--mint));-webkit-background-clip:text;background-clip:text;color:transparent}
-.tc .s{font-size:10.5px;color:var(--muted);margin-top:3px;line-height:1.3}
+.tc .s{font-size:11px;color:var(--muted);margin-top:3px;line-height:1.3}
 .search{width:100%;padding:12px;min-height:44px;border-radius:12px;background:var(--bg2);border:1px solid var(--line);outline:none;margin-bottom:8px}
 .search:focus{border-color:var(--mint)}
 .srow{width:100%;display:grid;grid-template-columns:64px 1fr auto;gap:10px;align-items:center;padding:12px 8px;min-height:56px;border-radius:12px;text-align:left;border:1px solid transparent}
@@ -322,13 +322,13 @@ header{display:flex;align-items:center;justify-content:space-between;padding:18p
 .flame{display:inline-flex;align-items:center;gap:3px;font-size:12px;color:var(--gold);font-weight:700;vertical-align:middle}
 .ladder{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}.ladder div{background:var(--bg3);border-radius:12px;padding:10px;text-align:center}.ladder .l{font-size:12px;color:var(--muted)}.ladder .v{font-weight:700;color:var(--mint)}
 /* Floating pill tab bar: liquid glass capsule. Saturated blur, specular top edge, soft drop. */
-nav{position:fixed;bottom:calc(10px + env(safe-area-inset-bottom,0px));left:12px;right:12px;max-width:496px;margin:0 auto;background:linear-gradient(180deg,rgba(255,255,255,.45),rgba(255,255,255,0) 48%),var(--glass);backdrop-filter:blur(26px) saturate(190%);-webkit-backdrop-filter:blur(26px) saturate(190%);border:1px solid var(--glass-edge);border-radius:999px;display:grid;grid-template-columns:repeat(4,1fr);padding:5px;box-shadow:0 10px 32px rgba(23,27,46,.18),inset 0 1.5px 0 rgba(255,255,255,.9),inset 0 -1px 2px rgba(23,27,46,.05);z-index:10;position:fixed;touch-action:none}
+nav{position:fixed;bottom:calc(10px + env(safe-area-inset-bottom,0px));left:12px;right:12px;max-width:496px;margin:0 auto;background:linear-gradient(180deg,rgba(255,255,255,.45),rgba(255,255,255,0) 48%),var(--glass);backdrop-filter:blur(26px) saturate(190%);-webkit-backdrop-filter:blur(26px) saturate(190%);border:1px solid var(--glass-edge);border-radius:999px;display:grid;grid-template-columns:repeat(4,1fr);padding:5px;box-shadow:0 10px 32px rgba(23,27,46,.18),inset 0 1.5px 0 rgba(255,255,255,.9),inset 0 -1px 2px rgba(23,27,46,.05);z-index:10;position:fixed;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
 /* The Liquid Glass lens: transparent magnifier. It carries a scaled clone of the tab strip,
    clipped to the capsule, so icons and labels genuinely zoom and slide under the glass. */
-nav .lens{position:absolute;top:5px;bottom:5px;width:calc(25% - 10px);border-radius:999px;overflow:hidden;background:rgba(255,255,255,.66);backdrop-filter:blur(10px) saturate(180%);-webkit-backdrop-filter:blur(10px) saturate(180%);box-shadow:0 4px 16px rgba(23,27,46,.18),inset 0 1.5px 0 rgba(255,255,255,.9);transition:left .45s cubic-bezier(.3,1.5,.4,1),transform .22s cubic-bezier(.2,.9,.3,1.3);will-change:left,transform;z-index:2;pointer-events:none}
+nav .lens{position:absolute;top:5px;bottom:5px;width:calc((100% - 10px) / 4);border-radius:999px;overflow:hidden;background:rgba(252,253,255,.94);box-shadow:0 4px 16px rgba(23,27,46,.18),inset 0 1.5px 0 rgba(255,255,255,.95);transition:left .45s cubic-bezier(.3,1.5,.4,1),transform .22s cubic-bezier(.2,.9,.3,1.3);will-change:left,transform;z-index:2;pointer-events:none;user-select:none;-webkit-user-select:none}
 nav .lens:before{content:"";position:absolute;inset:0;border-radius:999px;padding:1.5px;background:conic-gradient(from 210deg,rgba(255,120,200,.55),rgba(120,200,255,.55),rgba(140,255,200,.45),rgba(255,220,140,.5),rgba(255,120,200,.55));-webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);mask-composite:exclude;opacity:.75;z-index:3;pointer-events:none}
 nav .lens:after{content:"";position:absolute;inset:2px;border-radius:999px;background:radial-gradient(60% 42% at 30% 14%,rgba(255,255,255,.8),transparent 70%);opacity:.5;pointer-events:none;z-index:3}
-nav .lens .mag{position:absolute;top:0;bottom:0;width:calc(400% + 40px);display:grid;grid-template-columns:repeat(4,1fr);transition:left .45s cubic-bezier(.3,1.5,.4,1);will-change:left}
+nav .lens .mag{position:absolute;top:0;bottom:0;width:400%;display:grid;grid-template-columns:repeat(4,1fr);transition:left .45s cubic-bezier(.3,1.5,.4,1);will-change:left}
 nav .lens .mg{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;font-size:11px;font-weight:700;color:var(--ink);transform:scale(1.14);transition:transform .22s cubic-bezier(.2,.9,.3,1.3)}
 nav .lens.drag{transform:scale(1.15) translateY(-4px)}
 nav .lens.drag .mg{transform:scale(1.24)}
