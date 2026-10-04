@@ -267,6 +267,7 @@ function Shell({ session }: { session: Session }) {
   const d = useData(session); const [tab, setTab] = useState<Tab>('home');
   const [cart, setCart] = useState<Leg[]>([]); const [slipOpen, setSlipOpen] = useState(false); const [brokerOpen, setBrokerOpen] = useState(false);
   const [stockOpen, setStockOpen] = useState<string | null>(null);
+  const [lockedPick, setLockedPick] = useState<Pick | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
   const goGame = (gid: string) => { setStockOpen(null); setOpenId(gid); setTab('home'); scrollTo(0, 0); };
   const [stake, setStake] = useState(() => Number(localStorage.getItem('ib_stake')) || 20);
@@ -328,7 +329,8 @@ function Shell({ session }: { session: Session }) {
     <div className={'toast ' + (toast ? 'on' : '')}>{toast}</div>
     <Slip d={d} legs={slipOpen ? cart : []} stake={stake} setStake={setStake} onRemove={removeLeg} onClose={() => setSlipOpen(false)} say={say}
       brokerConnected={!!d.broker?.connected} onNeedBroker={() => setBrokerOpen(true)}
-      onLocked={() => { setCart([]); setSlipOpen(false); d.reload(); }} />
+      onLocked={p => { setCart([]); setSlipOpen(false); setLockedPick(p); d.reload(); }} />
+    <LockedSheet p={lockedPick} g={lockedPick ? gm[lockedPick.game_id] ?? null : null} d={d} say={say} onClose={() => setLockedPick(null)} />
     <BrokerSheet open={brokerOpen} current={d.broker} uid={session.user.id} onClose={() => setBrokerOpen(false)} onDone={() => { d.reload(); say('Connected (simulated)'); }} />
     <Reveals d={d} gm={gm} />
   </>;
@@ -575,7 +577,7 @@ function Promo({ d, uid, invested, onCup }: { d: ReturnType<typeof useData>; uid
 /* ---------- slip: two steps, Hard Rock's way. Stake on the numpad, then the stock. ---------- */
 function Slip({ d, legs, stake, setStake, onRemove, onClose, onLocked, say, brokerConnected, onNeedBroker }: {
   d: ReturnType<typeof useData>; legs: Leg[]; stake: number; setStake: (n: number) => void; onRemove: (i: number) => void;
-  onClose: () => void; onLocked: () => void; say: (m: string) => void; brokerConnected: boolean; onNeedBroker: () => void;
+  onClose: () => void; onLocked: (p: Pick) => void; say: (m: string) => void; brokerConnected: boolean; onNeedBroker: () => void;
 }) {
   const [step, setStep] = useState<1 | 2>(1);
   const [raw, setRaw] = useState('20');
@@ -604,9 +606,9 @@ function Slip({ d, legs, stake, setStake, onRemove, onClose, onLocked, say, brok
     if (!single || !ticker || stakeN < 2) return;
     if (!brokerConnected) return onNeedBroker();
     setBusy(true); localStorage.setItem('ib_stake', String(stakeN));
-    const { error } = await sb.rpc('lock_pick', { p_game_id: single.game.id, p_market: single.line.market, p_selection: single.line.selection, p_stake: stakeN, p_ticker: ticker });
+    const { data, error } = await sb.rpc('lock_pick', { p_game_id: single.game.id, p_market: single.line.market, p_selection: single.line.selection, p_stake: stakeN, p_ticker: ticker });
     setBusy(false); if (error) return say(error.message.replace(/^.*?: /, ''));
-    navigator.vibrate?.(30); say(marketOpen(new Date()) ? `Locked. Buying ${ticker} now` : `Locked. ${ticker} buys at next market open`); onLocked();
+    navigator.vibrate?.(30); onLocked(data as Pick);
   };
   const liveTag = (g: Game) => Date.parse(g.commence_time) <= Date.now() && <b className="gold" style={{ fontSize: 11, marginLeft: 6 }}>LIVE</b>;
   return <><div className="scrim open" onClick={onClose} /><div className="sheet open">
@@ -674,6 +676,31 @@ function Slip({ d, legs, stake, setStake, onRemove, onClose, onLocked, say, brok
       <button className="btn" disabled={!ticker || busy} onClick={lock}>{busy ? 'Locking…' : !brokerConnected && ticker ? 'Connect brokerage to lock' : ticker ? 'Lock it in' : 'Pick a stock to lock'}</button>
       <div className="disc">Odds lock now. During beta the buy is simulated at the next market price. Lines are approximate 10-year averages and worst peak-to-trough drops. Not advice.</div>
     </>}
+  </div></>;
+}
+
+/* ---------- locked in: the celebration sheet, the moment worth a screenshot ---------- */
+function LockedSheet({ p, g, d, say, onClose }: { p: Pick | null; g: Game | null; d: ReturnType<typeof useData>; say: (m: string) => void; onClose: () => void }) {
+  useLockBody(!!p);
+  if (!p) return <><div className="scrim" /><div className="sheet" /></>;
+  const stock = d.stocks.find(x => x.ticker === p.ticker);
+  const kick = g ? kickoffLabel(new Date(g.commence_time)) : null;
+  return <><div className="scrim open" onClick={onClose} /><div className="sheet open">
+    <div className="grab" />
+    <div className="lockmark"><Symbol name="check" size={28} /></div>
+    <h2 style={{ fontSize: 26 }}>Locked in.</h2>
+    <p className="hint" style={{ marginTop: 4 }}>{marketOpen(new Date()) ? `Buying ${p.ticker} now.` : `${p.ticker} buys at the next market open.`} Points land when the game goes final.</p>
+    <div className="card" style={{ margin: '12px 0' }}>
+      <div className="side" style={{ fontSize: 19 }}>{legLabel(p)} <span className="odds-acc">{oddsTxt(p.odds)}</span></div>
+      <div className="eyebrow">{MARKET_LABEL[p.market] ?? p.market} · to hit{p.live ? ' · locked live' : ''}</div>
+      {g && <div className="meta">{g.away} @ {g.home}{kick ? ` · ${kick.day}, ${kick.time}` : ''}</div>}
+      <div className="se"><div><div className="l">Stake</div><div className="v">{fmt0(Number(p.stake))}</div></div><div><div className="l">Earns</div><div className="v mint">{earnsTxt(p)}</div></div></div>
+      <div className="meta" style={{ marginTop: 10 }}>{fmt0(Number(p.stake))} of {p.ticker}{stock ? ` · ${stock.name}` : ''} · yours win or miss</div>
+      <div className="pid-row"><span className="pid">ID {p.id.slice(0, 8)}<button aria-label="Copy pick ID" style={{ minHeight: 24, color: 'inherit' }} onClick={() => { navigator.clipboard?.writeText(p.id); say('Copied'); }}><Symbol name="copy" size={13} /></button></span></div>
+    </div>
+    {g && <button className="btn ghost" onClick={() => sharePick(p, g, say)}><span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}><Symbol name="share" size={16} />Share with friends</span></button>}
+    <div style={{ height: 8 }} />
+    <button className="btn" onClick={onClose}>Done</button>
   </div></>;
 }
 

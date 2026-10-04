@@ -242,6 +242,7 @@ header{display:flex;align-items:center;justify-content:space-between;padding:18p
 .legrow .rm{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;min-height:34px;border-radius:50%;background:var(--bg3);color:var(--muted)}
 /* Two-step slip: visible close, editable stake with numpad and quick-adds */
 .sheet{position:fixed}
+.lockmark{width:56px;height:56px;border-radius:50%;background:var(--mint);color:#fff;display:flex;align-items:center;justify-content:center;margin:6px 0 12px;animation:popsel .45s cubic-bezier(.2,.9,.3,1.4);box-shadow:0 6px 18px rgba(15,163,110,.35)}
 .sheet-x{position:absolute;top:12px;right:14px;width:36px;height:36px;min-height:36px;border-radius:50%;background:var(--bg3);display:inline-flex;align-items:center;justify-content:center;color:var(--muted);z-index:2}
 .sx{font-size:32px;font-weight:800;letter-spacing:-.03em;display:inline-block;min-width:88px;border-bottom:2.5px solid var(--peri);padding-bottom:2px;margin-top:2px}
 .sx.empty{color:var(--dim)}
