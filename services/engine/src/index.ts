@@ -91,7 +91,7 @@ export async function ingestScores() {
     let slate: Slate; try { slate = await fetchSlate(sport, day); } catch (e) { log('scores fail', sport, day, (e as Error).message); continue; }
     await syncSlate(sport, slate);
     // Live scores onto the board, and any genuinely in-play lines a live source provides
-    for (const lv of slate.live) await sb.from('games').update({ home_score: lv.homeScore, away_score: lv.awayScore, period: lv.period, clock: lv.clock, updated_at: new Date().toISOString() }).eq('id', lv.id).eq('completed', false);
+    for (const lv of slate.live) await sb.from('games').update({ home_score: lv.homeScore, away_score: lv.awayScore, period: lv.period, clock: lv.clock, last_play: lv.lastPlay, updated_at: new Date().toISOString() }).eq('id', lv.id).eq('completed', false);
     if (slate.lines.length) await sb.from('lines').upsert(slate.lines, { onConflict: 'game_id,market,selection' });
     for (const f of slate.finals) {
       // ESPN id first; otherwise a legacy row for the same matchup (Odds API lines mode keeps those ids)

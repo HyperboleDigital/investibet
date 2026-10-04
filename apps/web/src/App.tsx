@@ -5,7 +5,7 @@ import Symbol from './Symbol';
 import { implied, basePoints, potSplit, projectSmart, marketOpen, stackOdds, stackPoints, bookValue, counterfactualDelta } from '@investibet/core';
 
 /* ---------- types ---------- */
-type Game = { id: string; sport_key: string; league: string; home: string; away: string; commence_time: string; completed: boolean; home_score: number | null; away_score: number | null; period?: number | null; clock?: string | null };
+type Game = { id: string; sport_key: string; league: string; home: string; away: string; commence_time: string; completed: boolean; home_score: number | null; away_score: number | null; period?: number | null; clock?: string | null; last_play?: string | null };
 type Line = { game_id: string; market: string; selection: string; point: number | null; price: number; fetched_at?: string | null };
 type TeamInfo = { abbreviation: string; short_name: string; ui_color: string | null };
 type Pick = { id: string; game_id: string; market: string; selection: string; point: number | null; odds: number; stake: number; ticker: string; locked_at: string; fill_price: number | null; shares: number | null; filled_at: string | null; status: string; points: number; counted: boolean; live?: boolean };
@@ -753,9 +753,10 @@ function ScoreBand({ g, teams, state, onEvent }: { g: Game; teams: Record<string
   return <div className="scorestrip">
     <div className="ss-top">
       <span className="ss-side">{ab(g.away)}<span className="ss-num">{g.away_score ?? 0}</span></span>
-      {state === 'live' ? <span className="livetag"><i className="ld" />{periodLabel(g)}</span> : <span className="ss-fin">Final</span>}
+      {state === 'live' ? <span className="livetag"><Symbol name="play" size={11} />{periodLabel(g)}</span> : <span className="ss-fin">Final</span>}
       <span className="ss-side"><span className="ss-num">{g.home_score ?? 0}</span>{ab(g.home)}</span>
     </div>
+    {state === 'live' && g.last_play && <div className="ss-play"><Symbol name="live" size={13} /><span>{g.last_play}</span></div>}
     {onEvent && <button className="ss-go" onClick={e => { e.stopPropagation(); onEvent(); }}><Symbol name="lines" size={14} />Go to game<Symbol name="chevron" size={12} /></button>}
   </div>;
 }
@@ -796,9 +797,9 @@ function Picks({ d, gm, say, onEvent }: { d: ReturnType<typeof useData>; gm: Rec
         return <div key={p.id} role="button" tabIndex={0} className={'pick tap ' + (won ? 'won' : p.status === 'lost' ? 'lost' : '')} onClick={() => setSelId(p.id)}>
           {won && <WonBand />}
           <div className="row"><div><div className="side">{legLabel(p)} <span className="odds-acc">{oddsTxt(p.odds)}</span></div>
-            <div className="eyebrow">{MARKET_LABEL[p.market] ?? p.market} · to hit{p.live ? ' · locked live' : ''}</div>
-            <div className="meta">{g.away} @ {g.home}</div></div>
-            {!won && statusChip(p, live)}</div>
+            <div className="eyebrow">{MARKET_LABEL[p.market] ?? p.market} · to hit</div>
+            {!live && <div className="meta">{g.away} @ {g.home}</div>}</div>
+            {!won && !live && statusChip(p, live)}</div>
           <div className="se"><div><div className="l">Stake</div><div className="v">{fmt0(Number(p.stake))}</div></div><div><div className="l">Earns</div><div className="v">{earnsTxt(p)}</div></div></div>
           {live ? <ScoreBand g={g} teams={d.teams} state="live" onEvent={() => onEvent(g.id)} />
             : won && g.completed ? <ScoreStrip g={g} teams={d.teams} />
