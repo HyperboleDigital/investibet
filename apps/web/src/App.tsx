@@ -27,6 +27,10 @@ const legKey = (l: Line) => [l.game_id, l.market, l.selection, l.point].join('|'
 const MARKET_LABEL: Record<string, string> = { h2h: 'Winner', spreads: 'Spread', totals: 'Total', prop: 'Prop' };
 const legLabel = (l: { market: string; selection: string; point: number | null }) =>
   l.market === 'prop' ? l.selection.split('|')[0] + ' ' + l.selection.split('|')[2] + ' ' + (l.point ?? '') : l.selection + (l.market === 'h2h' ? '' : ' ' + pt(l.point));
+const RANKS: [string, number, string][] = [['Bronze', 0, '#B07A4B'], ['Silver', 100, '#9AA3B5'], ['Gold', 350, '#D9A434'], ['Platinum', 800, '#7FC8DF'], ['Diamond', 2000, '#9F8CF5']];
+const rankFor = (pts: number) => { let r = RANKS[0]; for (const t of RANKS) if (pts >= t[1]) r = t; return r; };
+const nextRank = (pts: number) => RANKS.find(t => t[1] > pts) ?? null;
+const ODDS_STEPS = [-300, -250, -200, -150, -120, -110, 100, 120, 150, 170, 200, 250, 300, 350, 400, 450, 500];
 const fmtMult = (m: number) => '\u00d7' + (Math.round(m * 100) / 100);
 const initialsOf = (name: string) => name.trim().split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase() || 'U';
 
@@ -1163,6 +1167,8 @@ function ProfileTab({ d, gm, uid, say, onBroker }: { d: ReturnType<typeof useDat
   const [theme, setTheme] = useState(() => localStorage.getItem('ib_theme') ?? 'auto');
   const pickTheme = (t: string) => { localStorage.setItem('ib_theme', t); setTheme(t); window.dispatchEvent(new Event('ib-theme')); };
   const [editName, setEditName] = useState(false); const [nameDraft, setNameDraft] = useState('');
+  const [calc, setCalc] = useState(false); const [coIdx, setCoIdx] = useState(8); const [coStreak, setCoStreak] = useState(0);
+  useLockBody(calc);
   const saveName = async () => {
     const v = nameDraft.trim().slice(0, 30);
     if (v.length < 2) return say('2 characters minimum');
@@ -1183,6 +1189,7 @@ function ProfileTab({ d, gm, uid, say, onBroker }: { d: ReturnType<typeof useDat
   const value = ownedValue(mine, d.prices);
   const wins = mine.filter(p => p.status === 'won').length, losses = mine.filter(p => p.status === 'lost').length;
   const monthPts = Math.round(mine.filter(p => p.counted).reduce((s, p) => s + Number(p.points), 0));
+  const invested = mine.reduce((t, p) => t + Number(p.stake), 0);
   return <section className="view">
     {(() => { const w = name.trim().split(/\s+/); const first = w[0] ?? 'You'; const rest = w.slice(1).join(' ');
       const joined = d.profile?.created_at ? new Date(d.profile.created_at).toLocaleDateString(undefined, { month: 'long', year: 'numeric' }) : null;
@@ -1211,7 +1218,36 @@ function ProfileTab({ d, gm, uid, say, onBroker }: { d: ReturnType<typeof useDat
       </div>
       {how && <p className="hint" style={{ marginTop: 10 }}>Every stake buys real stock in your own brokerage account. Win and you earn points toward the pot. Miss and the streak resets, but the stock stays yours. Investibet never holds your money and never recommends a stock.</p>}
     </div>
-    <div className="card"><div className="row"><div><div style={{ fontWeight: 700 }}>This month</div><div className="small">{wins} won · {losses} missed · streak {d.profile?.streak ?? 0}</div></div><div style={{ fontWeight: 700, fontSize: 22 }}>{monthPts} pts</div></div></div>
+    {(() => {
+      const season = Math.round(mine.reduce((t, p) => t + Number(p.points), 0));
+      const cur = rankFor(season); const nxt = nextRank(season);
+      const frac = nxt ? Math.min(1, (season - cur[1]) / (nxt[1] - cur[1])) : 1;
+      const end = new Date(); const potEnd = new Date(end.getFullYear(), end.getMonth() + 1, 1);
+      const left = potEnd.getTime() - Date.now(); const dd = Math.floor(left / 86400e3); const hh = Math.floor((left % 86400e3) / 3600e3);
+      return <div className="card rankcard" style={{ borderColor: cur[2] }}>
+        <div className="row">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <span className="rankshield" style={{ background: cur[2] }}><Symbol name="medal" size={22} /></span>
+            <div><div className="rankname" style={{ color: cur[2] }}>{cur[0].toUpperCase()}</div>
+              <div className="small">{wins} won · {losses} missed · {monthPts} pts this month</div></div>
+          </div>
+          <div style={{ textAlign: 'right' }}><div style={{ fontWeight: 800, fontSize: 22 }}>{season}</div><div className="small">season pts</div></div>
+        </div>
+        {nxt ? <>
+          <div className="rankbar"><i style={{ width: `${Math.max(3, frac * 100)}%`, background: cur[2] }} /></div>
+          <div className="small" style={{ marginTop: 6 }}>{nxt[1] - season} pts to {nxt[0]} · tiers only climb, never reset</div>
+        </> : <div className="small" style={{ marginTop: 10 }}>Top tier. It never resets.</div>}
+        <div className="row" style={{ marginTop: 12 }}>
+          <span className="small"><b className="gold">Pot drops in {dd}d {hh}h</b> · {fmt0(d.pot)} this month</span>
+          <button className="btn ghost sm" onClick={() => setCalc(true)}>How points earn</button>
+        </div>
+        <div className="badges">
+          {RANKS.map(([n, min, c]) => <span key={n} className={'bdg' + (season >= min ? ' on' : '')} style={season >= min ? { background: c } : undefined}>
+            {season >= min ? <Symbol name="medal" size={12} /> : <Symbol name="lock" size={11} />}{n}</span>)}
+          {[100, 500, 1000].map(m => <span key={m} className={'bdg' + (invested >= m ? ' on mintb' : '')}>
+            {invested >= m ? <Symbol name="check" size={12} /> : <Symbol name="lock" size={11} />}{fmt0(m)} invested</span>)}
+        </div>
+      </div>; })()}
     <CupSection d={d} uid={uid} />
     <div className="card">
       <div style={{ fontWeight: 700 }}>Appearance</div>
@@ -1226,6 +1262,24 @@ function ProfileTab({ d, gm, uid, say, onBroker }: { d: ReturnType<typeof useDat
         <button className="btn sm" disabled={pwBusy || pw.length < 8} onClick={savePw}>{pwBusy ? 'Saving…' : 'Save'}</button>
       </div>
     </div>
+    {calc && <><div className="scrim open" onClick={() => setCalc(false)} /><div className="sheet open">
+      <div className="grab" />
+      <h3 style={{ fontSize: 22 }}>Earning points</h3>
+      <p className="hint" style={{ marginTop: 4 }}>Slide the odds and your streak. Stake size never changes points.</p>
+      {(() => { const odds = ODDS_STEPS[coIdx]; const base = basePoints(odds); const m = streakMultiplier(coStreak + 1); const total = Math.round(base * m);
+        return <>
+          <div className="se" style={{ marginTop: 10 }}>
+            <div><div className="l">A win earns</div><div className="v mint">{total} pts</div><div className="small" style={{ marginTop: 2 }}>{base} base {coStreak >= 1 ? `${fmtMult(m)} streak` : '· no streak yet'}</div></div>
+            <div><div className="l">Toward</div><div className="v">the pot</div><div className="small" style={{ marginTop: 2 }}>best 15 a week count</div></div>
+          </div>
+          <div className="calcrow"><span>Odds</span><b>{oddsTxt(odds)}</b></div>
+          <input type="range" min={0} max={ODDS_STEPS.length - 1} step={1} value={coIdx} onChange={e => setCoIdx(+e.target.value)} aria-label="Odds" />
+          <div className="calcrow"><span>Current streak</span><b>{coStreak} {coStreak > 0 && <Flame size={14} streak={coStreak} />}</b></div>
+          <input type="range" min={0} max={10} step={1} value={coStreak} onChange={e => setCoStreak(+e.target.value)} aria-label="Streak" />
+          <div className="disc">Points are the American odds on a flat $100 basis. Each consecutive win compounds them 20%, capped at 5x from the tenth win. Multipliers apply when the pick settles.</div>
+        </>; })()}
+      <button className="btn" style={{ marginTop: 10 }} onClick={() => setCalc(false)}>Got it</button>
+    </div></>}
     <button className="btn ghost" onClick={() => sb.auth.signOut()}>Sign out</button>
     <div className="disc">Investibet never holds your money, never places trades for you, and never recommends a stock. Lines shown are informational. Free, private, invite-only beta.</div>
     <div className="small" style={{ textAlign: 'center', margin: '16px 0' }}>Beta 0.2</div>
