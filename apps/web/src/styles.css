@@ -126,6 +126,9 @@ header{display:flex;align-items:center;justify-content:space-between;padding:18p
 .posrow{display:flex;justify-content:space-between;gap:12px;padding:12px 0;border-bottom:1px solid var(--line);font-size:14px}
 .posrow span{color:var(--muted)}
 .posrow b{font-weight:600}
+.posrow.cur{background:var(--gold2);margin:0 -16px;padding:12px 16px;border-radius:10px;border-bottom-color:transparent}
+.posrow.cur span{color:var(--ink);font-weight:700}
+.streakline{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:800;color:var(--gold);margin-top:8px;min-height:30px;padding:0}
 .posrow b.coral{color:var(--coral)}
 /* Counterfactual hero: two cards face off, then the 5-year number is the headline */
 .tl2{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:12px 0 10px}

@@ -394,6 +394,8 @@ function Home({ d, uid, cart, onToggle, onCup, onStock, openId, setOpenId }: { d
   const [propsFor, setPropsFor] = useState<string | null>(null); const [propLines, setPropLines] = useState<Line[]>([]);
   const [secOpen, setSecOpen] = useState<Record<string, boolean>>({});
   const [hz, setHz] = useState(5);
+  const [streakInfo, setStreakInfo] = useState(false);
+  useLockBody(streakInfo);
   const gm = useMemo(() => Object.fromEntries(d.games.map(g => [g.id, g])), [d.games]);
   const now = Date.now();
   const query = q.trim().toLowerCase();
@@ -534,6 +536,9 @@ function Home({ d, uid, cart, onToggle, onCup, onStock, openId, setOpenId }: { d
         <div className="l">You own</div>
         <div className="v"><Roll value={value} format={fmt0} /></div>
         <div className="s">{d.profile?.weekly_cap ? `${fmt0(weekStaked)} of ${fmt0(Number(d.profile.weekly_cap))} staked this week` : `${fmt0(weekStaked)} staked this week`}</div>
+        <button className="streakline" onClick={() => setStreakInfo(true)} aria-label="How streak multipliers work">
+          {streak >= 1 ? `${streak} streak · next win ${fmtMult(streakMultiplier(streak + 1))}` : 'win to light a streak'}<Symbol name="info" size={13} />
+        </button>
         <div className="fl" aria-label={`Streak ${streak}`}><Flame size={26} streak={streak} /><span className={streak >= 3 ? 'gold' : ''}>{streak}</span></div>
       </div>
       <div className="tlc book">
@@ -572,6 +577,18 @@ function Home({ d, uid, cart, onToggle, onCup, onStock, openId, setOpenId }: { d
     </div>}
 
     <div className="disc">Lines come from one major sportsbook via public scoreboard data, refreshed hourly. Odds lock the moment you tap Lock. Team names identify games and are trademarks of their owners. Investibet is not affiliated with any league or team. Projections are hypothetical, never advice.</div>
+    {streakInfo && <><div className="scrim open" onClick={() => setStreakInfo(false)} /><div className="sheet open">
+      <div className="grab" />
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}><Flame size={30} streak={Math.max(streak, 3)} /><h3 style={{ fontSize: 22 }}>Streak multipliers</h3></div>
+      <p className="hint" style={{ marginTop: 6 }}>Every consecutive win compounds your points another 20%, maxing out at 5x from the tenth win on. A miss resets it; the stock never resets.</p>
+      <div className="posrows" style={{ marginTop: 6 }}>
+        {Array.from({ length: 10 }, (_, k) => k + 1).map(n => <div key={n} className={'posrow' + (n === streak + 1 ? ' cur' : '')}>
+          <span>Win #{n}{n === 10 ? '+' : ''} in a row{n === streak + 1 ? ' · your next win' : ''}</span>
+          <b className="gold">{fmtMult(streakMultiplier(n))}{n === 10 ? ' max' : ''}</b>
+        </div>)}
+      </div>
+      <button className="btn" style={{ marginTop: 12 }} onClick={() => setStreakInfo(false)}>Done</button>
+    </div></>}
   </section>;
 }
 
