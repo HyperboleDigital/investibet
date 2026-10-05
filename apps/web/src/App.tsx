@@ -743,8 +743,8 @@ function LockedSheet({ p, g, d, say, onClose }: { p: Pick | null; g: Game | null
       <div className="side" style={{ fontSize: 19 }}>{legLabel(p)} <span className="odds-acc">{oddsTxt(p.odds)}</span></div>
       <div className="eyebrow">{MARKET_LABEL[p.market] ?? p.market} · to hit{p.live ? ' · locked live' : ''}</div>
       {g && <div className="meta">{g.away} @ {g.home}{kick ? ` · ${kick.day}, ${kick.time}` : ''}</div>}
-      <div className="se"><div><div className="l">Stake</div><div className="v">{fmt0(Number(p.stake))}</div></div><div><div className="l">Earns</div><div className="v mint">{earnsTxt(p)}</div></div></div>
-      <div className="meta" style={{ marginTop: 10 }}>{fmt0(Number(p.stake))} of {p.ticker}{stock ? ` · ${stock.name}` : ''} · yours win or miss</div>
+      <div className="se"><div><div className="l">Invested</div><div className="v">{fmt0(Number(p.stake))} <span className="tkr">{p.ticker}</span></div></div><div><div className="l">Earns</div><div className="v mint">{earnsTxt(p)}</div></div></div>
+      <div className="meta" style={{ marginTop: 10 }}>{stock ? `${stock.name} · ` : ''}yours win or miss</div>
       <div className="pid-row"><span className="pid">ID {p.id.slice(0, 8)}<button aria-label="Copy pick ID" style={{ minHeight: 24, color: 'inherit' }} onClick={() => { navigator.clipboard?.writeText(p.id); say('Copied'); }}><Symbol name="copy" size={13} /></button></span></div>
     </div>
     {g && <button className="btn ghost" onClick={() => sharePick(p, g, say)}><span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}><Symbol name="share" size={16} />Share with friends</span></button>}
@@ -850,13 +850,13 @@ function Picks({ d, gm, say, onEvent }: { d: ReturnType<typeof useData>; gm: Rec
             <div className="eyebrow">{MARKET_LABEL[p.market] ?? p.market} · to hit</div>
             {!live && <div className="meta">{g.away} @ {g.home}</div>}</div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 'none' }}><span className="odds-acc" style={{ fontSize: 17 }}>{oddsTxt(p.odds)}</span>{!won && !live && statusChip(p, live)}</div></div>
-          <div className="se"><div><div className="l">Stake</div><div className="v">{fmt0(Number(p.stake))}</div></div><div><div className="l">Earns</div><div className="v">{earnsTxt(p)}</div>
+          <div className="se"><div><div className="l">Invested</div><div className="v">{fmt0(Number(p.stake))} <span className="tkr">{p.ticker}</span></div></div><div><div className="l">Earns</div><div className="v">{earnsTxt(p)}</div>
             {won && Number(p.points) > basePoints(p.odds) * 1.01 && <div className="boost"><Flame size={19} streak={3} />{fmtMult(Number(p.points) / basePoints(p.odds))} streak boost</div>}</div></div>
           {live ? <ScoreBand g={g} teams={d.teams} state="live" onEvent={() => onEvent(g.id)} />
             : won && g.completed ? <ScoreStrip g={g} teams={d.teams} />
             : g.completed ? <ScoreBand g={g} teams={d.teams} state="final" />
             : <div className="kick"><Symbol name="calendar" size={13} />{`${day}, ${time}`}</div>}
-          <div className={'meta ' + (p.filled_at ? 'mint' : '')} style={{ marginTop: 12 }}>{p.filled_at ? `Bought ${Number(p.shares).toFixed(4)} ${p.ticker} at ${fmt(Number(p.fill_price))}${val != null ? ` · now ${fmt(val)}` : ''}` : `${fmt0(Number(p.stake))} of ${p.ticker} · buys at next market open`}</div>
+          <div className={'meta ' + (p.filled_at ? 'mint' : '')} style={{ marginTop: 12 }}>{p.filled_at ? `Bought ${Number(p.shares).toFixed(4)} ${p.ticker} at ${fmt(Number(p.fill_price))}${val != null ? ` · now ${fmt(val)}` : ''}` : 'buys at the next market open'}</div>
           <div className="pid-row">
             <span className="pid">ID {p.id.slice(0, 8)}<button aria-label="Copy pick ID" style={{ minHeight: 24, color: 'inherit' }} onClick={e => { e.stopPropagation(); navigator.clipboard?.writeText(p.id); say('Copied'); }}><Symbol name="copy" size={13} /></button></span>
             <button className="sharelink" onClick={e => { e.stopPropagation(); sharePick(p, g, say); }}><Symbol name="share" size={14} />Share</button>
@@ -890,7 +890,7 @@ function PickSheet({ p, g, d, say, onClose, onEvent }: { p: Pick | null; g: Game
       <div className="row"><div><div className="side" style={{ fontSize: 20 }}>{legLabel(p)} <span className="odds-acc">{oddsTxt(p.odds)}</span></div>
         <div className="eyebrow">{MARKET_LABEL[p.market] ?? p.market} · to hit</div>
         <div className="meta">{g.away} @ {g.home}</div></div></div>
-      <div className="se"><div><div className="l">Stake</div><div className="v">{fmt0(Number(p.stake))}</div></div><div><div className="l">Earns</div><div className="v">{earnsTxt(p)}</div></div></div>
+      <div className="se"><div><div className="l">Invested</div><div className="v">{fmt0(Number(p.stake))} <span className="tkr">{p.ticker}</span></div></div><div><div className="l">Earns</div><div className="v">{earnsTxt(p)}</div></div></div>
       {g.completed && <ScoreStrip g={g} teams={d.teams} />}
     </div> : <>
       <div className="row" style={{ alignItems: 'flex-start' }}><div style={{ minWidth: 0 }}><div className="side" style={{ fontSize: 20 }}>{legLabel(p)}</div>
@@ -898,7 +898,7 @@ function PickSheet({ p, g, d, say, onClose, onEvent }: { p: Pick | null; g: Game
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 'none' }}><span className="odds-acc" style={{ fontSize: 18 }}>{oddsTxt(p.odds)}</span>{statusChip(p, live)}</div></div>
       <div className="meta" style={{ marginTop: 6 }}>{g.away} @ {g.home}</div>
       <div className="kick"><Symbol name="calendar" size={13} />{g.completed ? 'Final' : live ? <b>In play</b> : `${day}, ${time}`}<span>· {g.league}</span></div>
-      <div className="se"><div><div className="l">Stake</div><div className="v">{fmt0(Number(p.stake))}</div></div><div><div className="l">Earns</div><div className="v">{earnsTxt(p)}</div></div></div>
+      <div className="se"><div><div className="l">Invested</div><div className="v">{fmt0(Number(p.stake))} <span className="tkr">{p.ticker}</span></div></div><div><div className="l">Earns</div><div className="v">{earnsTxt(p)}</div></div></div>
       {live ? <ScoreBand g={g} teams={d.teams} state="live" onEvent={() => onEvent(g.id)} /> : g.completed ? <ScoreBand g={g} teams={d.teams} state="final" /> : null}
     </>}
     {won && Number(p.points) > basePoints(p.odds) * 1.01 && <div className="boost" style={{ marginTop: 8 }}><Flame size={19} streak={3} />{basePoints(p.odds)} base {fmtMult(Number(p.points) / basePoints(p.odds))} streak boost</div>}
