@@ -12,7 +12,7 @@ Monorepo, deployed and running:
 
 Just fixed (commit these first if not already in main): prices loader used the wrong variable and crashed before lines loaded; line fetch now chunks by 60 games to dodge the 1000-row cap; signup is email only; `mobile-web-app-capable` meta added.
 
-Owen's rules: read the docs first, build one feature per session, stop at each checkpoint for review, full-file handoffs, migration-first (new SQL file per change, never edit 0001). Flag conflicts with locked decisions instead of silently complying.
+Owen's rules: read the docs first, build one feature per session, stop at each checkpoint for review, full-file handoffs, migration-first (new SQL file per change, never edit 0001). Flag conflicts with locked decisions instead of silently complying. Every change must pass the Apple check below before it is built.
 
 ## Locked decisions (do not reopen)
 
@@ -24,6 +24,20 @@ Owen's rules: read the docs first, build one feature per session, stop at each c
 - App never recommends a stock. Lines are shown, never ranked by return. Disclaimer on every projection.
 - Options and anything that can expire worthless: never. If a loss screen could say anything other than "you still own this," it is the wrong feature.
 - No em dashes in any user-facing copy.
+- The app ships to the Apple App Store eventually (Capacitor wrap of the PWA). Apple compliance is a standing constraint on every change, not a pre-launch task. See the Apple check below.
+
+## Apple check (run on every feature, decision, and dependency)
+
+This app will be submitted to the App Store. Before building anything, ask: does this survive Apple review? If a feature, flow, or copy choice conflicts with the App Store Review Guidelines, flag it exactly like a conflict with a locked decision and stop for Owen. Known constraints to design against now:
+
+- **Sign-in (guideline 4.8):** if the app offers any third-party login (Google), the native build must also offer Sign in with Apple. Any auth work must leave room for both. Email code login is always safe.
+- **Contests and gambling adjacency (5.3):** the pot and pick mechanics will be reviewed under Apple's contest rules. Expect a 17+ rating, region gating, and clear official rules. Nothing may move us toward paid entry, chance-based rewards, or real-money wagering language; those are already locked out, keep it that way. The sportsbook-vocabulary swap (Pick, Back, Lock) helps here too; never regress it.
+- **Payments (3.1.1):** Gold sold inside a native app is a digital subscription, which means Apple In-App Purchase, not Stripe Checkout, in the iOS build. Build Gold so the entitlement (`profiles.tier`) is decoupled from the payment rail: web can use Stripe, iOS will need StoreKit later. Never hardcode Stripe as the only path to `tier = gold`, and no "go to our website to pay cheaper" copy inside the app.
+- **Finance (3.2):** we never custody funds, never place real orders, and always show the simulated-brokerage disclaimer. Real brokerage integration, when it comes, triggers Apple's financial-app requirements (must come from the licensed entity's developer account); do not casually blur the simulation line in UI copy before that.
+- **Minimum functionality (4.2):** a thin web wrapper gets rejected. Native-feeling polish (haptics, safe areas, offline tolerance, push via native APIs in the wrap) is App Store work, not nice-to-have.
+- **Privacy (5.1):** every new data point collected (favorites, notifications, analytics, anything) must be coverable by the privacy policy and Apple's privacy nutrition label. No third-party SDK goes in without checking what it phones home.
+
+When in doubt, the test is: would this feature, screenshotted in review, read as an investing game with a sports layer, or as a sportsbook? Only the first one ships.
 
 ## Vocabulary (apply everywhere, including code comments and DB copy)
 

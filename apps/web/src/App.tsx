@@ -1,6 +1,6 @@
 import { useEffect, useId, useMemo, useRef, useState, useCallback } from 'react';
-import type { Session } from '@supabase/supabase-js';
-import { sb, ENABLE_PROPS } from './lib/supabase';
+import { useAuth, useUser, useClerk, SignIn } from '@clerk/clerk-react';
+import { sb, setClerkTokenGetter, ENABLE_PROPS } from './lib/supabase';
 import Symbol from './Symbol';
 import { implied, basePoints, potSplit, projectSmart, marketOpen, stackOdds, stackPoints, bookValue, counterfactualDelta, streakMultiplier } from '@investibet/core';
 
@@ -179,23 +179,23 @@ function useLockBody(locked: boolean) {
 }
 
 /* ---------- data hook ---------- */
-function useData(session: Session | null) {
+function useData(uid: string | null) {
   const [games, setGames] = useState<Game[]>([]); const [lines, setLines] = useState<Line[]>([]); const [picks, setPicks] = useState<Pick[]>([]);
   const [stocks, setStocks] = useState<Stock[]>([]); const [prices, setPrices] = useState<Record<string, number>>({});
   const [profile, setProfile] = useState<Profile | null>(null); const [lb, setLb] = useState<LB[]>([]); const [pot, setPot] = useState(100); const [broker, setBroker] = useState<Broker>(null);
   const [teams, setTeams] = useState<Record<string, TeamInfo>>({});
   const load = useCallback(async () => {
-    if (!session) return;
+    if (!uid) return;
     const since = new Date(Date.now() - 6 * 3600e3).toISOString();
     const [g, s, p, pr, pk, l, pc, bc, tm] = await Promise.all([
       sb.from('games').select('*').gt('commence_time', since).order('commence_time').limit(400),
       sb.from('stock_lines').select('*'),
       sb.from('prices').select('ticker, price'),
-      sb.from('profiles').select('*').eq('id', session.user.id).single(),
-      sb.from('picks').select('*').eq('user_id', session.user.id).order('locked_at', { ascending: false }),
+      sb.from('profiles').select('*').eq('id', uid).single(),
+      sb.from('picks').select('*').eq('user_id', uid).order('locked_at', { ascending: false }),
       sb.from('leaderboard').select('*').eq('month', month()),
       sb.from('pool_config').select('pot').eq('month', month()).maybeSingle(),
-      sb.from('brokerage_connections').select('provider, connected').eq('user_id', session.user.id).maybeSingle(),
+      sb.from('brokerage_connections').select('provider, connected').eq('user_id', uid).maybeSingle(),
       sb.from('team_lookup').select('odds_api_name, abbreviation, short_name, ui_color'),
     ]);
     setGames(g.data ?? []); setStocks(s.data ?? []); setPrices(Object.fromEntries((p.data ?? []).map(x => [x.ticker, Number(x.price)])));
@@ -209,21 +209,21 @@ function useData(session: Session | null) {
     // games for my picks that fell out of the window (settled)
     const missing = (pk.data ?? []).map(x => x.game_id).filter(id => !ids.includes(id));
     if (missing.length) { const mg = await sb.from('games').select('*').in('id', missing); setGames(prev => [...prev, ...(mg.data ?? [])]); }
-  }, [session]);
+  }, [uid]);
   useEffect(() => { load(); }, [load]);
   useEffect(() => {
-    if (!session) return;
-    const ch = sb.channel('live').on('postgres_changes', { event: '*', schema: 'public', table: 'picks', filter: `user_id=eq.${session.user.id}` }, load)
+    if (!uid) return;
+    const ch = sb.channel('live').on('postgres_changes', { event: '*', schema: 'public', table: 'picks', filter: `user_id=eq.${uid}` }, load)
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'games' }, load).subscribe();
     const t = setInterval(load, 120e3);
     return () => { sb.removeChannel(ch); clearInterval(t); };
-  }, [session, load]);
+  }, [uid, load]);
   return { games, lines, picks, stocks, prices, profile, lb, pot, broker, teams, reload: load };
 }
 
 /* ---------- app ---------- */
 export default function App() {
-  const [session, setSession] = useState<Session | null>(null); const [ready, setReady] = useState(false);
+  const { isLoaded, isSignedIn, userId, getToken } = useAuth();
   useEffect(() => {
     const apply = () => {
       const pref = localStorage.getItem('ib_theme') ?? 'auto';
@@ -236,50 +236,19 @@ export default function App() {
     mq.addEventListener('change', apply); window.addEventListener('ib-theme', apply);
     return () => { mq.removeEventListener('change', apply); window.removeEventListener('ib-theme', apply); };
   }, []);
-  useEffect(() => { sb.auth.getSession().then(({ data }) => { setSession(data.session); setReady(true); }); const { data } = sb.auth.onAuthStateChange((_, s) => setSession(s)); return () => data.subscription.unsubscribe(); }, []);
-  if (!ready) return null;
-  if (!session) return <Gate />;
-  return <Shell session={session} />;
+  useEffect(() => { setClerkTokenGetter(() => getToken()); }, [getToken]);
+  if (!isLoaded) return null;
+  if (!isSignedIn) return <Gate />;
+  return <Shell uid={userId!} />;
 }
 
 function Gate() {
-  const [email, setEmail] = useState(() => localStorage.getItem('ib_email') ?? '');
-  const [mode, setMode] = useState<'email' | 'code' | 'password'>('email');
-  const [code, setCode] = useState(''); const [pw, setPw] = useState('');
-  const [err, setErr] = useState(''); const [busy, setBusy] = useState(false);
-  const run = async (fn: () => Promise<{ error: { message: string } | null }>, then?: () => void) => {
-    setErr(''); setBusy(true);
-    const { error } = await fn(); setBusy(false);
-    if (error) return setErr(error.message);
-    localStorage.setItem('ib_email', email); then?.();
-  };
-  const sendCode = () => email && run(() => sb.auth.signInWithOtp({ email, options: { emailRedirectTo: location.origin } }), () => { setCode(''); setMode('code'); });
-  const verify = () => code.trim() && run(() => sb.auth.verifyOtp({ email, token: code.trim(), type: 'email' }));
-  const pwLogin = () => pw && run(() => sb.auth.signInWithPassword({ email, password: pw }));
   return <div className="gate"><div className="box">
     <div className="brand" style={{ fontSize: 28 }}>Investi<span>bet</span></div>
     <p className="hint">Sports picks where the stake buys stock you keep. Losing loses nothing.</p>
-    <input placeholder="Email" type="email" inputMode="email" autoCapitalize="none" autoComplete="email" value={email} onChange={e => setEmail(e.target.value)} />
-    {mode === 'email' && <>
-      <button className="btn" disabled={busy || !email} onClick={sendCode}>{busy ? 'Sending…' : 'Email me a code'}</button>
-      <div style={{ height: 8 }} />
-      <button className="btn ghost" onClick={() => { setErr(''); setMode('password'); }}>I have a password</button>
-    </>}
-    {mode === 'code' && <>
-      <p className="hint">Check your email for a 6-digit code. Entering it here keeps you inside the app; the link works too.</p>
-      <input placeholder="6-digit code" inputMode="numeric" autoComplete="one-time-code" maxLength={6} value={code} onChange={e => setCode(e.target.value.replace(/\D/g, ''))} />
-      <button className="btn" disabled={busy || code.trim().length < 6} onClick={verify}>{busy ? 'Checking…' : 'Sign in'}</button>
-      <div style={{ height: 8 }} />
-      <button className="btn ghost" disabled={busy} onClick={sendCode}>Resend the code</button>
-    </>}
-    {mode === 'password' && <>
-      <input placeholder="Password" type="password" autoComplete="current-password" value={pw} onChange={e => setPw(e.target.value)} />
-      <button className="btn" disabled={busy || !email || !pw} onClick={pwLogin}>{busy ? 'Signing in…' : 'Sign in'}</button>
-      <div style={{ height: 8 }} />
-      <button className="btn ghost" onClick={() => { setErr(''); setMode('email'); }}>Email me a code instead</button>
-      <p className="hint" style={{ marginTop: 10 }}>No password yet? Sign in with a code once, then set one in Profile.</p>
-    </>}
-    {err && <p className="hint" style={{ color: 'var(--coral)', marginTop: 10 }}>{err}. Try again, or use a code instead.</p>}
+    <div style={{ display: 'flex', justifyContent: 'center', marginTop: 12 }}>
+      <SignIn routing="hash" withSignUp />
+    </div>
     <div className="disc">Free, private beta. No money moves through this app. Brokerage connection is simulated during beta.</div>
   </div></div>;
 }
@@ -288,8 +257,25 @@ function Gate() {
 type Tab = 'home' | 'picks' | 'owned' | 'stocks' | 'profile';
 const TABS: [Tab, string, string][] = [['home', 'Home', 'home'], ['picks', 'Picks', 'ticket'], ['owned', 'Invest', 'chart'], ['stocks', 'Stocks', 'magnifyingglass']];
 
-function Shell({ session }: { session: Session }) {
-  const d = useData(session); const [tab, setTab] = useState<Tab>('home');
+function Shell({ uid }: { uid: string }) {
+  const d = useData(uid); const [tab, setTab] = useState<Tab>('home');
+  // signup used to run on a Supabase auth.users trigger; with Clerk the app
+  // creates its own profile row on first sign-in (insert-own RLS policy)
+  const { user } = useUser();
+  const ensured = useRef(false);
+  useEffect(() => {
+    if (!user || ensured.current) return;
+    ensured.current = true;
+    const full = (user.fullName ?? user.firstName ?? user.primaryEmailAddress?.emailAddress.split('@')[0] ?? 'Player').slice(0, 30);
+    (async () => {
+      const { data } = await sb.from('profiles').select('display_name').eq('id', user.id).maybeSingle();
+      if (!data) await sb.from('profiles').insert({ id: user.id, display_name: full });
+      // early Clerk signups stored the first name only; expand those once, never a name the user chose
+      else if (user.firstName && data.display_name === user.firstName && full !== user.firstName)
+        await sb.from('profiles').update({ display_name: full }).eq('id', user.id);
+      d.reload();
+    })();
+  }, [user]); // eslint-disable-line
   const [cart, setCart] = useState<Leg[]>([]); const [slipOpen, setSlipOpen] = useState(false); const [brokerOpen, setBrokerOpen] = useState(false);
   const [stockOpen, setStockOpen] = useState<string | null>(null);
   const [lockedPick, setLockedPick] = useState<Pick | null>(null);
@@ -326,11 +312,11 @@ function Shell({ session }: { session: Session }) {
   return <>
     {stockOpen ? <StockPage ticker={stockOpen} d={d} gm={gm} onClose={() => setStockOpen(null)} /> : <>
       {tab === 'home' && <header><div className="brand">Investi<span>bet</span></div></header>}
-      {tab === 'home' && <Home d={d} uid={session.user.id} cart={cart} onToggle={toggleLeg} onCup={() => setTab('profile')} onStock={setStockOpen} openId={openId} setOpenId={setOpenId} />}
+      {tab === 'home' && <Home d={d} uid={uid} cart={cart} onToggle={toggleLeg} onCup={() => setTab('profile')} onStock={setStockOpen} openId={openId} setOpenId={setOpenId} />}
       {tab === 'picks' && <Picks d={d} gm={gm} say={say} onEvent={goGame} />}
       {tab === 'owned' && <Owned d={d} gm={gm} onStock={setStockOpen} />}
       {tab === 'stocks' && <StocksTab d={d} onStock={setStockOpen} />}
-      {tab === 'profile' && <ProfileTab d={d} gm={gm} uid={session.user.id} say={say} onBroker={() => setBrokerOpen(true)} />}
+      {tab === 'profile' && <ProfileTab d={d} gm={gm} uid={uid} say={say} onBroker={() => setBrokerOpen(true)} />}
     </>}
     {cart.length > 0 && !slipOpen && <button className="selbar" onClick={() => setSlipOpen(true)}>
       <span className="n" key={cart.length}>{cart.length} {cart.length === 1 ? 'pick' : 'picks'}</span>
@@ -352,13 +338,13 @@ function Shell({ session }: { session: Session }) {
         <span className="avatar">{initialsOf(d.profile?.display_name ?? 'You')}{!d.broker?.connected && <i className="dot" />}</span>Profile
       </button>
     </nav>
-    {!cart.length && <button className="fb" onClick={async () => { const t = prompt('What sucked? Be blunt.'); if (!t) return; await sb.from('feedback').insert({ user_id: session.user.id, text: t.slice(0, 500), screen: tab }); say('Sent. Thanks.'); }}>What sucked?</button>}
+    {!cart.length && <button className="fb" onClick={async () => { const t = prompt('What sucked? Be blunt.'); if (!t) return; await sb.from('feedback').insert({ user_id: uid, text: t.slice(0, 500), screen: tab }); say('Sent. Thanks.'); }}>What sucked?</button>}
     <div className={'toast ' + (toast ? 'on' : '')}>{toast}</div>
     <Slip d={d} legs={slipOpen ? cart : []} stake={stake} setStake={setStake} onRemove={removeLeg} onClose={() => setSlipOpen(false)} say={say}
       brokerConnected={!!d.broker?.connected} onNeedBroker={() => setBrokerOpen(true)}
       onLocked={p => { setCart([]); setSlipOpen(false); setLockedPick(p); d.reload(); }} />
     <LockedSheet p={lockedPick} g={lockedPick ? gm[lockedPick.game_id] ?? null : null} d={d} say={say} onClose={() => setLockedPick(null)} />
-    <BrokerSheet open={brokerOpen} current={d.broker} uid={session.user.id} onClose={() => setBrokerOpen(false)} onDone={() => { d.reload(); say('Connected (simulated)'); }} />
+    <BrokerSheet open={brokerOpen} current={d.broker} uid={uid} onClose={() => setBrokerOpen(false)} onDone={() => { d.reload(); say('Connected (simulated)'); }} />
     <Reveals d={d} gm={gm} />
   </>;
 }
@@ -1175,15 +1161,7 @@ function ProfileTab({ d, gm, uid, say, onBroker }: { d: ReturnType<typeof useDat
     await sb.from('profiles').update({ display_name: v }).eq('id', d.profile!.id);
     setEditName(false); say('Name updated'); d.reload();
   };
-  const [pw, setPw] = useState(''); const [pwBusy, setPwBusy] = useState(false);
-  const savePw = async () => {
-    if (pw.length < 8) return say('8 characters minimum');
-    setPwBusy(true);
-    const { error } = await sb.auth.updateUser({ password: pw });
-    setPwBusy(false);
-    say(error ? error.message : 'Password set. Next sign-in can skip the email.');
-    if (!error) setPw('');
-  };
+  const { signOut, openUserProfile } = useClerk();
   const name = d.profile?.display_name ?? 'You';
   const mine = d.picks.filter(p => gm[p.game_id]);
   const value = ownedValue(mine, d.prices);
@@ -1255,12 +1233,9 @@ function ProfileTab({ d, gm, uid, say, onBroker }: { d: ReturnType<typeof useDat
         <button key={t} className={theme === t ? 'on' : ''} onClick={() => pickTheme(t)}>{t[0].toUpperCase() + t.slice(1)}</button>)}</div>
     </div>
     <div className="card">
-      <div style={{ fontWeight: 700 }}>Sign-in password</div>
-      <div className="small" style={{ marginTop: 4 }}>Set one once and skip the email code next time. 8 characters or more.</div>
-      <div className="row" style={{ marginTop: 10 }}>
-        <input type="password" autoComplete="new-password" placeholder="New password" value={pw} onChange={e => setPw(e.target.value)} style={{ flex: 1, padding: 12, minHeight: 44, borderRadius: 10, background: 'var(--bg3)', border: '1px solid var(--line)', outline: 'none' }} aria-label="New password" />
-        <button className="btn sm" disabled={pwBusy || pw.length < 8} onClick={savePw}>{pwBusy ? 'Saving…' : 'Save'}</button>
-      </div>
+      <div style={{ fontWeight: 700 }}>Sign-in</div>
+      <div className="small" style={{ marginTop: 4 }}>Email, Google, and security settings for your account.</div>
+      <button className="btn ghost sm" style={{ marginTop: 10 }} onClick={() => openUserProfile()}>Manage account</button>
     </div>
     {calc && <><div className="scrim open" onClick={() => setCalc(false)} /><div className="sheet open">
       <div className="grab" />
@@ -1280,7 +1255,7 @@ function ProfileTab({ d, gm, uid, say, onBroker }: { d: ReturnType<typeof useDat
         </>; })()}
       <button className="btn" style={{ marginTop: 10 }} onClick={() => setCalc(false)}>Got it</button>
     </div></>}
-    <button className="btn ghost" onClick={() => sb.auth.signOut()}>Sign out</button>
+    <button className="btn ghost" onClick={() => signOut()}>Sign out</button>
     <div className="disc">Investibet never holds your money, never places trades for you, and never recommends a stock. Lines shown are informational. Free, private, invite-only beta.</div>
     <div className="small" style={{ textAlign: 'center', margin: '16px 0' }}>Beta 0.2</div>
   </section>;
