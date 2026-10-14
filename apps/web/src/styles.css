@@ -132,6 +132,7 @@ header{display:flex;align-items:center;justify-content:space-between;padding:18p
 .posrow b.coral{color:var(--coral)}
 /* Counterfactual hero: two cards face off, then the 5-year number is the headline */
 .tl2{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:12px 0 10px}
+.tl2.solo{grid-template-columns:1fr}
 .tlc{position:relative;border-radius:14px;padding:14px;border:1px solid var(--line)}
 .tlc .l{font-size:12px;font-weight:700;color:var(--muted)}
 .tlc .v{font-size:27px;font-weight:800;letter-spacing:-.03em;margin-top:4px}
@@ -183,6 +184,7 @@ header{display:flex;align-items:center;justify-content:space-between;padding:18p
 .vb-rows{margin-top:12px}
 .vb-li{font-size:13px;color:var(--muted);padding:8px 0;border-top:1px solid var(--line);line-height:1.45}
 .vb-li b{color:var(--ink)}.vb-li b.coral{color:var(--coral)}.vb-li b.mint{color:var(--mint)}
+b.coral{color:var(--coral)}
 .pendrow{display:flex;align-items:center;gap:12px;padding:12px 6px;border-bottom:1px solid var(--line)}
 .pendrow .tk{font-weight:700;font-size:15px}
 .chip.slim{min-height:38px;padding:0 12px}

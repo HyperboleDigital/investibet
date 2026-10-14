@@ -409,9 +409,7 @@ function Home({ d, uid, cart, onToggle, onCup, onStock, openId, setOpenId }: { d
 
   const mine = d.picks.filter(p => gm[p.game_id]);
   const value = ownedValue(mine, d.prices);
-  const book = bookValue(mine.map(p => ({ stake: Number(p.stake), odds: p.odds, status: p.status as any })));
   const invested = mine.reduce((s, p) => s + Number(p.stake), 0);
-  const kept = invested - book; // what the same picks would have cost at a sportsbook so far
   const retPct = invested ? ((value - invested) / invested) * 100 : 0;
   const projAtH = (y: number) => mine.reduce((s, p) => { const st = d.stocks.find(x => x.ticker === p.ticker); const cur = p.shares && d.prices[p.ticker] ? Number(p.shares) * d.prices[p.ticker] : Number(p.stake); return s + projectSmart(cur, st?.avg_return_10y ?? 10, y); }, 0);
   const weekStaked = mine.filter(p => gm[p.game_id] && sameWeek(gm[p.game_id].commence_time)).reduce((s, p) => s + Number(p.stake), 0);
@@ -525,7 +523,7 @@ function Home({ d, uid, cart, onToggle, onCup, onStock, openId, setOpenId }: { d
       {live.slice(0, 4).map(g => <button key={g.id} className="lvtab" onClick={() => { setOpenId(g.id); scrollTo(0, 0); }}><i className="ld" />{team(g.away).abbreviation} @ {team(g.home).abbreviation}</button>)}
     </div>
 
-    <div className="tl2">
+    <div className="tl2 solo">
       <div className="tlc you">
         <div className="l">You own</div>
         <div className="v"><Roll value={value} format={fmt0} /></div>
@@ -534,13 +532,6 @@ function Home({ d, uid, cart, onToggle, onCup, onStock, openId, setOpenId }: { d
           {streak >= 1 ? `${streak} streak · next win ${fmtMult(streakMultiplier(streak + 1))}` : 'win to light a streak'}<Symbol name="info" size={13} />
         </button>
         <div className="fl" aria-label={`Streak ${streak}`}><Flame size={26} streak={streak} /><span className={streak >= 3 ? 'gold' : ''}>{streak}</span></div>
-      </div>
-      <div className="tlc book">
-        <div className="l">A sportsbook</div>
-        {kept > 0.005 ? <><div className="v">-{fmt(kept)}</div><div className="s">kept, gone forever. You invested it instead.</div></>
-          : kept < -0.005 ? <><div className="v plus">+{fmt(-kept)}</div><div className="s">would be paying you so far. Your money bought stock either way.</div></>
-          : mine.length ? <><div className="v">$0</div><div className="s">nothing settled yet. A miss here stays yours.</div></>
-          : <><div className="v">$0</div><div className="s">keeps every missed stake. Here it buys stock instead.</div></>}
       </div>
     </div>
     {invested > 0 && <div className="proj5">
@@ -1172,6 +1163,8 @@ function ProfileTab({ d, gm, uid, say, onBroker }: { d: ReturnType<typeof useDat
   const wins = mine.filter(p => p.status === 'won').length, losses = mine.filter(p => p.status === 'lost').length;
   const monthPts = Math.round(mine.filter(p => p.counted).reduce((s, p) => s + Number(p.points), 0));
   const invested = mine.reduce((t, p) => t + Number(p.stake), 0);
+  const book = bookValue(mine.map(p => ({ stake: Number(p.stake), odds: p.odds, status: p.status as any })));
+  const kept = invested - book; // what the same picks would have cost at a sportsbook so far
   return <section className="view">
     {(() => { const w = name.trim().split(/\s+/); const first = w[0] ?? 'You'; const rest = w.slice(1).join(' ');
       const joined = d.profile?.created_at ? new Date(d.profile.created_at).toLocaleDateString(undefined, { month: 'long', year: 'numeric' }) : null;
@@ -1194,6 +1187,9 @@ function ProfileTab({ d, gm, uid, say, onBroker }: { d: ReturnType<typeof useDat
     <div className="card">
       <div className="small">Owned</div>
       <div className="big" style={{ margin: '4px 0' }}><Roll value={value} format={fmt0} /></div>
+      {kept > 0.005 ? <div className="small">A sportsbook would have kept <b className="coral">{fmt(kept)}</b> of this by now. Here it bought stock you keep.</div>
+        : kept < -0.005 ? <div className="small">A sportsbook would be paying you {fmt(-kept)} so far. Your stakes bought stock either way.</div>
+        : mine.length > 0 ? <div className="small">Nothing settled yet. A missed pick here still buys stock.</div> : null}
       <div className="row" style={{ marginTop: 10 }}>
         <button className="btn ghost sm" onClick={onBroker}>{d.broker?.connected ? `${BROKERS.find(b => b[0] === d.broker!.provider)?.[1]} connected (simulated)` : 'Open brokerage (simulated)'}</button>
         <button className="btn ghost sm" onClick={() => setHow(h => !h)}>How it works</button>
