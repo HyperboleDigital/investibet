@@ -1,5 +1,6 @@
 import { useEffect, useId, useMemo, useRef, useState, useCallback } from 'react';
 import { useAuth, useUser, useClerk, SignIn } from '@clerk/clerk-react';
+import { dark as clerkDark } from '@clerk/themes';
 import { sb, setClerkTokenGetter, ENABLE_PROPS } from './lib/supabase';
 import Symbol from './Symbol';
 import { implied, basePoints, potSplit, projectSmart, marketOpen, stackOdds, stackPoints, bookValue, counterfactualDelta, streakMultiplier } from '@investibet/core';
@@ -247,7 +248,10 @@ function Gate() {
     <div className="brand" style={{ fontSize: 28 }}>Investi<span>bet</span></div>
     <p className="hint">Sports picks where the stake buys stock you keep. Losing loses nothing.</p>
     <div style={{ display: 'flex', justifyContent: 'center', marginTop: 12 }}>
-      <SignIn routing="hash" withSignUp />
+      <SignIn routing="hash" withSignUp appearance={{
+        baseTheme: document.documentElement.dataset.theme === 'dark' ? clerkDark : undefined,
+        variables: { colorPrimary: document.documentElement.dataset.theme === 'dark' ? '#4FE3A8' : '#0FA36E' },
+      }} />
     </div>
     <div className="disc">Free, private beta. No money moves through this app. Brokerage connection is simulated during beta.</div>
   </div></div>;
