@@ -31,6 +31,49 @@ export function stackOdds(legs: number[]): number {
 /** Points for a Stack = the combined odds on the flat $100 basis. A +600 stack earns 600. */
 export const stackPoints = (legs: number[]) => basePoints(stackOdds(legs));
 
+/** A Stack settles to its own status: flex = exactly one leg missed, scored at 40%. */
+export type StackStatus = 'pending' | 'won' | 'flex' | 'lost' | 'push';
+
+/**
+ * Grade a Stack from its legs. Pushed and voided legs drop out and the odds
+ * recompute from the rest, the way books reduce a parlay. Two misses lose the
+ * Stack immediately, even with legs still pending. Exactly one miss with every
+ * other live leg won scores 40% of the full points (Flex); the lost leg's odds
+ * stay in that basis because 40% is of what the Stack would have earned.
+ * basePts is before any streak multiplier.
+ */
+export function gradeStack(legs: { odds: number; status: Status }[]): { status: StackStatus; basePts: number } {
+  const losses = legs.filter(l => l.status === 'lost').length;
+  if (losses >= 2) return { status: 'lost', basePts: 0 };
+  if (legs.some(l => l.status === 'pending')) return { status: 'pending', basePts: 0 };
+  const live = legs.filter(l => l.status === 'won' || l.status === 'lost');
+  if (!live.length) return { status: 'push', basePts: 0 };
+  if (losses === 0) return { status: 'won', basePts: stackPoints(live.map(l => l.odds)) };
+  if (live.length === 1) return { status: 'lost', basePts: 0 };
+  return { status: 'flex', basePts: Math.round(stackPoints(live.map(l => l.odds)) * 0.4) };
+}
+
+export interface ScoreEvent { id: string; kickoff: string; status: Exclude<StackStatus, 'pending'> | 'void'; basePts: number }
+
+/**
+ * Walk picks and Stacks as one timeline in kickoff order (a Stack sits at its
+ * last leg's kickoff). A win extends the streak and takes the multiplier; flex
+ * takes the multiplier of the streak it preserved without extending it; a loss
+ * resets; pushes and voids pass through untouched.
+ */
+export function scoreEvents(events: ScoreEvent[]): { points: Record<string, number>; streak: number } {
+  const sorted = [...events].sort((a, b) => a.kickoff.localeCompare(b.kickoff));
+  let streak = 0; const points: Record<string, number> = {};
+  for (const e of sorted) {
+    if (e.status === 'push' || e.status === 'void') { points[e.id] = 0; continue; }
+    if (e.status === 'lost') { streak = 0; points[e.id] = 0; continue; }
+    if (e.status === 'flex') { points[e.id] = e.basePts * streakMultiplier(streak); continue; }
+    streak += 1;
+    points[e.id] = e.basePts * streakMultiplier(streak);
+  }
+  return { points, streak };
+}
+
 export interface GradeInput {
   market: Market;
   selection: string;     // team name | 'Over' | 'Under'

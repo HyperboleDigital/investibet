@@ -9,7 +9,8 @@ import { implied, basePoints, potSplit, projectSmart, marketOpen, stackOdds, sta
 type Game = { id: string; sport_key: string; league: string; home: string; away: string; commence_time: string; completed: boolean; home_score: number | null; away_score: number | null; period?: number | null; clock?: string | null; last_play?: string | null; down_distance?: string | null };
 type Line = { game_id: string; market: string; selection: string; point: number | null; price: number; fetched_at?: string | null };
 type TeamInfo = { abbreviation: string; short_name: string; ui_color: string | null };
-type Pick = { id: string; game_id: string; market: string; selection: string; point: number | null; odds: number; stake: number; ticker: string; locked_at: string; fill_price: number | null; shares: number | null; filled_at: string | null; status: string; points: number; counted: boolean; live?: boolean };
+type Pick = { id: string; game_id: string; market: string; selection: string; point: number | null; odds: number; stake: number; ticker: string; locked_at: string; fill_price: number | null; shares: number | null; filled_at: string | null; status: string; points: number; counted: boolean; live?: boolean; stack_id?: string | null };
+type Stack = { id: string; stake: number; ticker: string; odds: number; legs: number; first_kick: string; last_kick: string; status: string; points: number; counted: boolean; locked_at: string; fill_price: number | null; shares: number | null; filled_at: string | null };
 type Stock = { ticker: string; name: string; tier: number; avg_return_10y: number; max_drawdown: number };
 type Profile = { id: string; display_name: string; streak: number; weekly_cap: number | null; created_at?: string };
 type LB = { user_id: string; display_name: string; streak: number; month: string; points: number | null; wins: number; losses: number };
@@ -182,13 +183,14 @@ function useLockBody(locked: boolean) {
 /* ---------- data hook ---------- */
 function useData(uid: string | null) {
   const [games, setGames] = useState<Game[]>([]); const [lines, setLines] = useState<Line[]>([]); const [picks, setPicks] = useState<Pick[]>([]);
+  const [stacks, setStacks] = useState<Stack[]>([]);
   const [stocks, setStocks] = useState<Stock[]>([]); const [prices, setPrices] = useState<Record<string, number>>({});
   const [profile, setProfile] = useState<Profile | null>(null); const [lb, setLb] = useState<LB[]>([]); const [pot, setPot] = useState(100); const [broker, setBroker] = useState<Broker>(null);
   const [teams, setTeams] = useState<Record<string, TeamInfo>>({});
   const load = useCallback(async () => {
     if (!uid) return;
     const since = new Date(Date.now() - 6 * 3600e3).toISOString();
-    const [g, s, p, pr, pk, l, pc, bc, tm] = await Promise.all([
+    const [g, s, p, pr, pk, l, pc, bc, tm, st] = await Promise.all([
       sb.from('games').select('*').gt('commence_time', since).order('commence_time').limit(400),
       sb.from('stock_lines').select('*'),
       sb.from('prices').select('ticker, price'),
@@ -198,7 +200,9 @@ function useData(uid: string | null) {
       sb.from('pool_config').select('pot').eq('month', month()).maybeSingle(),
       sb.from('brokerage_connections').select('provider, connected').eq('user_id', uid).maybeSingle(),
       sb.from('team_lookup').select('odds_api_name, abbreviation, short_name, ui_color'),
+      sb.from('stacks').select('*').eq('user_id', uid).order('locked_at', { ascending: false }),
     ]);
+    setStacks((st.data ?? []) as Stack[]);
     setGames(g.data ?? []); setStocks(s.data ?? []); setPrices(Object.fromEntries((p.data ?? []).map(x => [x.ticker, Number(x.price)])));
     setTeams(Object.fromEntries((tm.data ?? []).map(t => [t.odds_api_name, t as TeamInfo])));
     setProfile(pr.error ? null : (pr.data as Profile)); setPicks((pk.data ?? []) as Pick[]); setLb((l.data ?? []) as LB[]); setPot(Number(pc.data?.pot ?? 100)); setBroker(bc.data as Broker);
@@ -215,11 +219,12 @@ function useData(uid: string | null) {
   useEffect(() => {
     if (!uid) return;
     const ch = sb.channel('live').on('postgres_changes', { event: '*', schema: 'public', table: 'picks', filter: `user_id=eq.${uid}` }, load)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'stacks', filter: `user_id=eq.${uid}` }, load)
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'games' }, load).subscribe();
     const t = setInterval(load, 120e3);
     return () => { sb.removeChannel(ch); clearInterval(t); };
   }, [uid, load]);
-  return { games, lines, picks, stocks, prices, profile, lb, pot, broker, teams, reload: load };
+  return { games, lines, picks, stacks, stocks, prices, profile, lb, pot, broker, teams, reload: load };
 }
 
 /* ---------- app ---------- */
@@ -283,6 +288,7 @@ function Shell({ uid }: { uid: string }) {
   const [cart, setCart] = useState<Leg[]>([]); const [slipOpen, setSlipOpen] = useState(false); const [brokerOpen, setBrokerOpen] = useState(false);
   const [stockOpen, setStockOpen] = useState<string | null>(null);
   const [lockedPick, setLockedPick] = useState<Pick | null>(null);
+  const [lockedStack, setLockedStack] = useState<{ s: Stack; legs: Leg[] } | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
   const goGame = (gid: string) => { setStockOpen(null); setOpenId(gid); setTab('home'); scrollTo(0, 0); };
   const [stake, setStake] = useState(() => Number(localStorage.getItem('ib_stake')) || 20);
@@ -346,8 +352,9 @@ function Shell({ uid }: { uid: string }) {
     <div className={'toast ' + (toast ? 'on' : '')}>{toast}</div>
     <Slip d={d} legs={slipOpen ? cart : []} stake={stake} setStake={setStake} onRemove={removeLeg} onClose={() => setSlipOpen(false)} say={say}
       brokerConnected={!!d.broker?.connected} onNeedBroker={() => setBrokerOpen(true)}
-      onLocked={p => { setCart([]); setSlipOpen(false); setLockedPick(p); d.reload(); }} />
-    <LockedSheet p={lockedPick} g={lockedPick ? gm[lockedPick.game_id] ?? null : null} d={d} say={say} onClose={() => setLockedPick(null)} />
+      onLocked={p => { setCart([]); setSlipOpen(false); setLockedPick(p); d.reload(); }}
+      onLockedStack={(s, lgs) => { setCart([]); setSlipOpen(false); setLockedStack({ s, legs: lgs }); d.reload(); }} />
+    <LockedSheet p={lockedPick} stk={lockedStack} g={lockedPick ? gm[lockedPick.game_id] ?? null : null} d={d} say={say} onClose={() => { setLockedPick(null); setLockedStack(null); }} />
     <BrokerSheet open={brokerOpen} current={d.broker} uid={uid} onClose={() => setBrokerOpen(false)} onDone={() => { d.reload(); say('Connected (simulated)'); }} />
     <Reveals d={d} gm={gm} />
   </>;
@@ -369,6 +376,17 @@ const kickoffLabel = (k: Date) => {
 const sameWeek = (iso: string) => { const a = new Date(iso), b = new Date(); const wk = (x: Date) => { const d = new Date(x); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return d.getTime(); }; return wk(a) === wk(b); };
 const ownedValue = (picks: Pick[], prices: Record<string, number>) =>
   picks.reduce((s, p) => s + (p.shares && prices[p.ticker] ? Number(p.shares) * prices[p.ticker] : Number(p.stake)), 0);
+
+/* Stacks as money rows: one stake, one stock, combined odds. A flex is a win
+ * here (it scored and the stock stays) but a loss at a sportsbook, which only
+ * knows all-or-nothing parlays. */
+type MoneyRow = { id: string; stake: number; odds: number; status: string; bookStatus: string; ticker: string; shares: number | null; fill_price: number | null; filled_at: string | null; locked_at: string; points: number };
+const moneyRows = (picks: Pick[], stacks: Stack[]): MoneyRow[] => [
+  ...picks.filter(p => !p.stack_id).map(p => ({ id: p.id, stake: Number(p.stake), odds: p.odds, status: p.status, bookStatus: p.status, ticker: p.ticker, shares: p.shares, fill_price: p.fill_price, filled_at: p.filled_at, locked_at: p.locked_at, points: Number(p.points) })),
+  ...stacks.map(s => ({ id: s.id, stake: Number(s.stake), odds: s.odds, status: s.status === 'flex' ? 'won' : s.status, bookStatus: s.status === 'flex' ? 'lost' : s.status, ticker: s.ticker, shares: s.shares, fill_price: s.fill_price, filled_at: s.filled_at, locked_at: s.locked_at, points: Number(s.points) })),
+];
+const rowValue = (rows: MoneyRow[], prices: Record<string, number>) =>
+  rows.reduce((s, r) => s + (r.shares && prices[r.ticker] ? Number(r.shares) * prices[r.ticker] : r.stake), 0);
 
 /** Live rules: the posted line holds 15 minutes past kickoff; a genuinely in-play line (fetched
  *  after kickoff by a live source) is lockable for 10 minutes from fetch. Mirrors lock_pick(). */
@@ -407,12 +425,13 @@ function Home({ d, uid, cart, onToggle, onCup, onStock, openId, setOpenId }: { d
     setPropLines((data ?? []) as Line[]);
   };
 
-  const mine = d.picks.filter(p => gm[p.game_id]);
-  const value = ownedValue(mine, d.prices);
-  const invested = mine.reduce((s, p) => s + Number(p.stake), 0);
+  const mine = moneyRows(d.picks.filter(p => gm[p.game_id]), d.stacks);
+  const value = rowValue(mine, d.prices);
+  const invested = mine.reduce((s, p) => s + p.stake, 0);
   const retPct = invested ? ((value - invested) / invested) * 100 : 0;
-  const projAtH = (y: number) => mine.reduce((s, p) => { const st = d.stocks.find(x => x.ticker === p.ticker); const cur = p.shares && d.prices[p.ticker] ? Number(p.shares) * d.prices[p.ticker] : Number(p.stake); return s + projectSmart(cur, st?.avg_return_10y ?? 10, y); }, 0);
-  const weekStaked = mine.filter(p => gm[p.game_id] && sameWeek(gm[p.game_id].commence_time)).reduce((s, p) => s + Number(p.stake), 0);
+  const projAtH = (y: number) => mine.reduce((s, p) => { const st = d.stocks.find(x => x.ticker === p.ticker); const cur = p.shares && d.prices[p.ticker] ? Number(p.shares) * d.prices[p.ticker] : p.stake; return s + projectSmart(cur, st?.avg_return_10y ?? 10, y); }, 0);
+  const weekStaked = d.picks.filter(p => !p.stack_id && gm[p.game_id] && sameWeek(gm[p.game_id].commence_time)).reduce((s, p) => s + Number(p.stake), 0)
+    + d.stacks.filter(s => sameWeek(s.first_kick)).reduce((s, x) => s + Number(x.stake), 0);
   const streak = d.profile?.streak ?? 0;
   const stockHits = query ? d.stocks.filter(x => x.ticker.toLowerCase().includes(query) || x.name.toLowerCase().includes(query)).slice(0, 5) : [];
 
@@ -506,9 +525,21 @@ function Home({ d, uid, cart, onToggle, onCup, onStock, openId, setOpenId }: { d
   }
 
 
-  // League sections, Hard Rock pattern: header with sport icon, capped list, View more lines
+  // League sections, Hard Rock pattern: header with sport icon, capped list, View more lines.
+  // Order follows the moment, not a fixed list: whatever is live leads (most games first),
+  // then whoever kicks off soonest. Saturday puts NCAAF on top without anyone configuring it.
   const CAP = 4;
-  const sections: [string, Game[]][] = (league === 'All' ? LEAGUES.slice(1) : [league])
+  const leagueOrder = (() => {
+    const rank = (lg: string) => {
+      const gs = d.games.filter(g => g.league === lg && !g.completed);
+      const liveN = gs.filter(g => Date.parse(g.commence_time) <= now).length;
+      if (liveN) return -liveN;
+      const next = gs.map(g => Date.parse(g.commence_time)).sort((a, b) => a - b)[0];
+      return next ? (next - now) / 36e5 + 1 : Infinity;
+    };
+    return [...LEAGUES.slice(1)].sort((a, b) => rank(a) - rank(b));
+  })();
+  const sections: [string, Game[]][] = (league === 'All' ? leagueOrder : [league])
     .map(lg => [lg, list.filter(g => g.league === lg)] as [string, Game[]])
     .filter(([, gs]) => gs.length > 0);
 
@@ -519,7 +550,7 @@ function Home({ d, uid, cart, onToggle, onCup, onStock, openId, setOpenId }: { d
       <button className={'chip slim ' + (filter === 'live' && !query ? 'on' : '')} aria-pressed={filter === 'live'} onClick={() => { setFilter('live'); setQ(''); }}><Symbol name="live" size={15} />Live{live.length ? ` · ${live.length}` : ''}</button>
     </div>
     <div className="ltabs" role="tablist" aria-label="Leagues">
-      {LEAGUES.map(l => <button key={l} role="tab" aria-selected={league === l && !query} className={league === l && !query ? 'on' : ''} onClick={() => { setLeague(l); setQ(''); }}>{l !== 'All' && <Symbol name={LEAGUE_ICONS[l]} size={16} />}{l}</button>)}
+      {['All', ...leagueOrder].map(l => <button key={l} role="tab" aria-selected={league === l && !query} className={league === l && !query ? 'on' : ''} onClick={() => { setLeague(l); setQ(''); }}>{l !== 'All' && <Symbol name={LEAGUE_ICONS[l]} size={16} />}{l}</button>)}
       {live.slice(0, 4).map(g => <button key={g.id} className="lvtab" onClick={() => { setOpenId(g.id); scrollTo(0, 0); }}><i className="ld" />{team(g.away).abbreviation} @ {team(g.home).abbreviation}</button>)}
     </div>
 
@@ -600,9 +631,9 @@ function Promo({ d, uid, invested, onCup }: { d: ReturnType<typeof useData>; uid
 }
 
 /* ---------- slip: two steps, Hard Rock's way. Stake on the numpad, then the stock. ---------- */
-function Slip({ d, legs, stake, setStake, onRemove, onClose, onLocked, say, brokerConnected, onNeedBroker }: {
+function Slip({ d, legs, stake, setStake, onRemove, onClose, onLocked, onLockedStack, say, brokerConnected, onNeedBroker }: {
   d: ReturnType<typeof useData>; legs: Leg[]; stake: number; setStake: (n: number) => void; onRemove: (i: number) => void;
-  onClose: () => void; onLocked: (p: Pick) => void; say: (m: string) => void; brokerConnected: boolean; onNeedBroker: () => void;
+  onClose: () => void; onLocked: (p: Pick) => void; onLockedStack: (s: Stack, legs: Leg[]) => void; say: (m: string) => void; brokerConnected: boolean; onNeedBroker: () => void;
 }) {
   const [step, setStep] = useState<1 | 2>(1);
   const [raw, setRaw] = useState('20');
@@ -618,25 +649,32 @@ function Slip({ d, legs, stake, setStake, onRemove, onClose, onLocked, say, brok
   const streak = d.profile?.streak ?? 0;
   const nextMult = streakMultiplier(streak + 1);
   const points = Math.round(basePts * nextMult);
-  const stakeN = Math.min(9999, parseFloat(raw) || 0);
+  const stakeN = Math.min(1000, parseFloat(raw) || 0);
+  const overCap = (parseFloat(raw) || 0) > 1000;
   const push = (c: string) => setRaw(r => {
     let n = r;
     if (c === '<') n = r.slice(0, -1);
     else if (c === '.') { if (r.includes('.')) return r; n = r === '' ? '0.' : r + '.'; }
     else { if (/\.\d{2}$/.test(r)) return r; n = r === '0' ? c : r + c; if (n.replace(/\D/g, '').length > 4) return r; }
-    setStake(Math.min(9999, parseFloat(n) || 0));
+    setStake(Math.min(1000, parseFloat(n) || 0));
     return n;
   });
-  const add = (v: number) => setRaw(r => { const n = Math.min(9999, Math.round(((parseFloat(r) || 0) + v) * 100) / 100); setStake(n); return String(n); });
+  const add = (v: number) => setRaw(r => { const n = Math.min(1000, Math.round(((parseFloat(r) || 0) + v) * 100) / 100); setStake(n); return String(n); });
   const s = d.stocks.find(x => x.ticker === ticker);
   const list = d.stocks.filter(x => q ? x.ticker.toLowerCase().includes(q.toLowerCase()) || x.name.toLowerCase().includes(q.toLowerCase()) : x.tier === tier).sort((a, b) => a.ticker.localeCompare(b.ticker));
   const lock = async () => {
-    if (!single || !ticker || stakeN < 2) return;
+    if (!ticker || stakeN < 2) return;
     if (!brokerConnected) return onNeedBroker();
     setBusy(true); localStorage.setItem('ib_stake', String(stakeN));
-    const { data, error } = await sb.rpc('lock_pick', { p_game_id: single.game.id, p_market: single.line.market, p_selection: single.line.selection, p_stake: stakeN, p_ticker: ticker });
-    setBusy(false); if (error) return say(error.message.replace(/^.*?: /, ''));
-    navigator.vibrate?.(30); onLocked(data as Pick);
+    if (single) {
+      const { data, error } = await sb.rpc('lock_pick', { p_game_id: single.game.id, p_market: single.line.market, p_selection: single.line.selection, p_stake: stakeN, p_ticker: ticker });
+      setBusy(false); if (error) return say(error.message.replace(/^.*?: /, ''));
+      navigator.vibrate?.(30); onLocked(data as Pick);
+    } else {
+      const { data, error } = await sb.rpc('lock_stack', { p_stake: stakeN, p_ticker: ticker, p_legs: legs.map(x => ({ game_id: x.game.id, market: x.line.market, selection: x.line.selection })) });
+      setBusy(false); if (error) return say(error.message.replace(/^.*?: /, ''));
+      navigator.vibrate?.(30); onLockedStack(data as Stack, legs);
+    }
   };
   const liveTag = (g: Game) => Date.parse(g.commence_time) <= Date.now() && <b className="gold" style={{ fontSize: 11, marginLeft: 6 }}>LIVE</b>;
   return <><div className="scrim open" onClick={onClose} /><div className="sheet open">
@@ -664,21 +702,21 @@ function Slip({ d, legs, stake, setStake, onRemove, onClose, onLocked, say, brok
           {streak >= 1 ? <div className="boost"><Flame size={14} streak={streak} />{basePts} {fmtMult(nextMult)} · your {streak}-streak bonus</div>
             : <div className="small" style={{ marginTop: 2 }}>plus the stock, win or miss</div>}</div>
       </div>
-      <div className="disc" style={{ marginTop: 6 }}>Hit the pick and the points are yours, same at any stake. Every consecutive win compounds them another 20%, up to 5x.</div>
-      <div className="quickadd">{[5, 10, 25].map(v => <button key={v} onClick={() => add(v)}>+${v}</button>)}</div>
+      <div className="disc" style={{ marginTop: 6 }}>
+        {single ? 'Hit the pick and the points are yours, same at any stake. Every consecutive win compounds them another 20%, up to 5x.'
+          : 'One stake, one stock, every leg must hit. If exactly one leg misses, the Stack still scores 40% of its points and your streak survives.'}
+        {' '}Stake $2 to $1,000 for now{overCap ? ', so this one locks at $1,000' : ''}.
+      </div>
+      <div className="quickadd">{[5, 25, 100].map(v => <button key={v} onClick={() => add(v)}>+${v}</button>)}</div>
       <div className="numpad">{['1', '2', '3', '4', '5', '6', '7', '8', '9', '.', '0', '<'].map(k =>
         <button key={k} aria-label={k === '<' ? 'Delete' : k} onClick={() => push(k)}>{k === '<' ? <Symbol name="backspace" size={22} /> : k}</button>)}</div>
-      {single ? <button className="btn" disabled={stakeN < 2} onClick={() => setStep(2)}>{stakeN >= 2 ? 'Continue to pick your stock' : 'Enter a stake, $2 minimum'}</button>
-        : <>
-          <button className="btn" disabled>Stacks lock in the next build</button>
-          <div className="disc">One stake, one stock, every leg must hit. For now, trim to one leg to lock a single pick.</div>
-        </>}
-    </> : single && <>
+      <button className="btn" disabled={stakeN < 2} onClick={() => setStep(2)}>{stakeN >= 2 ? 'Continue to pick your stock' : 'Enter a stake, $2 minimum'}</button>
+    </> : <>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, paddingRight: 40 }}>
         <button className="back" aria-label="Back to the stake" onClick={() => setStep(1)}><Symbol name="arrowleft" size={18} /></button>
         <div style={{ minWidth: 0 }}>
-          <div className="side" style={{ fontSize: 16 }}>{legLabel(single.line)} <span className="odds-acc">{oddsTxt(single.line.price)}</span></div>
-          <div className="meta" style={{ marginTop: 2 }}>{fmt0(stakeN)} stake · earns {points} pts if it hits{streak >= 1 ? ` (${fmtMult(nextMult)} streak)` : ''}</div>
+          <div className="side" style={{ fontSize: 16 }}>{single ? <>{legLabel(single.line)} <span className="odds-acc">{oddsTxt(single.line.price)}</span></> : <>{legs.length}-leg Stack <span className="odds-acc">{oddsTxt(combined)}</span></>}</div>
+          <div className="meta" style={{ marginTop: 2 }}>{fmt0(stakeN)} stake · earns {points} pts if {single ? 'it hits' : 'every leg hits'}{streak >= 1 ? ` (${fmtMult(nextMult)} streak)` : ''}</div>
         </div>
       </div>
       <div style={{ fontWeight: 700, margin: '12px 0 6px' }}>What does your {fmt0(stakeN)} buy?</div>
@@ -690,28 +728,51 @@ function Slip({ d, legs, stake, setStake, onRemove, onClose, onLocked, say, brok
         <div>{d.prices[x.ticker] ? <div className="pr">{fmt(d.prices[x.ticker])}</div> : null}<div className="ch">+{x.avg_return_10y}%/yr</div></div>
       </button>)}
       <div className="trio2">
-        <div className="tc winc"><div className="l">Win</div><div className="v mint">{points} pts</div><div className="s">toward the pot</div></div>
+        <div className="tc winc"><div className="l">{single ? 'Win' : 'All hit'}</div><div className="v mint">{points} pts</div><div className="s">toward the pot</div></div>
         <div className="tc"><div className="l">Miss</div><div className="v">keep {fmt0(stakeN)}</div><div className="s">the stock stays yours</div></div>
         <div className="tc futc"><div className="l">In 5 years</div><div className={'v' + (s ? ' grad' : '')}>{s ? '~' + fmt0(projectSmart(stakeN, s.avg_return_10y, 5)) : 'pick one'}</div><div className="s">at past averages, faded</div></div>
       </div>
       {s && <div className="receipt">
         <div className="rc-h">Investibet · your slip</div>
-        <div className="rc-r"><span>Pick</span><b>{legLabel(single.line)} {oddsTxt(single.line.price)}</b></div>
+        {single ? <div className="rc-r"><span>Pick</span><b>{legLabel(single.line)} {oddsTxt(single.line.price)}</b></div>
+          : legs.map((x, i) => <div className="rc-r" key={legKey(x.line)}><span>{i === 0 ? `Stack · ${oddsTxt(combined)}` : ''}</span><b>{legLabel(x.line)} {oddsTxt(x.line.price)}</b></div>)}
         <div className="rc-r"><span>Stake</span><b>{fmt0(stakeN)}</b></div>
         <div className="rc-r"><span>Buys</span><b>{s.ticker} · {s.name}</b></div>
         <div className="rc-d" />
-        <div className="rc-r"><span>Hits</span><b className="mint">{points} pts + the stock</b></div>
+        <div className="rc-r"><span>{single ? 'Hits' : 'All hit'}</span><b className="mint">{points} pts + the stock</b></div>
+        {!single && <div className="rc-r"><span>One leg misses</span><b>{Math.round(basePts * 0.4 * streakMultiplier(streak))} pts · streak survives</b></div>}
         <div className="rc-r"><span>Misses</span><b>{fmt0(stakeN)} of {s.ticker}, still yours</b></div>
       </div>}
-      <button className="btn" disabled={!ticker || busy} onClick={lock}>{busy ? 'Locking…' : !brokerConnected && ticker ? 'Connect brokerage to lock' : ticker ? 'Lock it in' : 'Pick a stock to lock'}</button>
+      <button className="btn" disabled={!ticker || busy} onClick={lock}>{busy ? 'Locking…' : !brokerConnected && ticker ? 'Connect brokerage to lock' : ticker ? (single ? 'Lock it in' : 'Lock the Stack') : 'Pick a stock to lock'}</button>
       <div className="disc">Odds lock now. During beta the buy is simulated at the next market price. Lines are approximate 10-year averages and worst peak-to-trough drops. Not advice.</div>
     </>}
   </div></>;
 }
 
 /* ---------- locked in: the celebration sheet, the moment worth a screenshot ---------- */
-function LockedSheet({ p, g, d, say, onClose }: { p: Pick | null; g: Game | null; d: ReturnType<typeof useData>; say: (m: string) => void; onClose: () => void }) {
-  useLockBody(!!p);
+function LockedSheet({ p, stk, g, d, say, onClose }: { p: Pick | null; stk: { s: Stack; legs: Leg[] } | null; g: Game | null; d: ReturnType<typeof useData>; say: (m: string) => void; onClose: () => void }) {
+  useLockBody(!!p || !!stk);
+  if (stk) {
+    const { s, legs } = stk;
+    const stock = d.stocks.find(x => x.ticker === s.ticker);
+    return <><div className="scrim open" onClick={onClose} /><div className="sheet open">
+      <div className="grab" />
+      <div className="lockmark"><Symbol name="check" size={28} /></div>
+      <h2 style={{ fontSize: 26 }}>Stack locked.</h2>
+      <p className="hint" style={{ marginTop: 4 }}>{marketOpen(new Date()) ? `Buying ${s.ticker} now.` : `${s.ticker} buys at the next market open.`} Points land when the last leg goes final.</p>
+      <div className="card" style={{ margin: '12px 0' }}>
+        <div className="side" style={{ fontSize: 19 }}>{s.legs}-leg Stack <span className="odds-acc">{oddsTxt(s.odds)}</span></div>
+        <div className="legs">{legs.map(x => <div className="legrow" key={legKey(x.line)}>
+          <div className="lx"><div className="n">{legLabel(x.line)}</div><div className="s">{MARKET_LABEL[x.line.market] ?? x.line.market} · {x.game.away} at {x.game.home}</div></div>
+          <div className="o">{oddsTxt(x.line.price)}</div>
+        </div>)}</div>
+        <div className="se"><div><div className="l">Invested</div><div className="v">{fmt0(Number(s.stake))} <span className="tkr">{s.ticker}</span></div></div><div><div className="l">Earns</div><div className="v mint">{basePoints(s.odds)} pts</div></div></div>
+        <div className="meta" style={{ marginTop: 10 }}>{stock ? `${stock.name} · ` : ''}yours win or miss. One miss still scores 40% and keeps your streak.</div>
+        <div className="pid-row"><span className="pid">ID {s.id.slice(0, 8)}<button aria-label="Copy Stack ID" style={{ minHeight: 24, color: 'inherit' }} onClick={() => { navigator.clipboard?.writeText(s.id); say('Copied'); }}><Symbol name="copy" size={13} /></button></span></div>
+      </div>
+      <button className="btn" onClick={onClose}>Done</button>
+    </div></>;
+  }
   if (!p) return <><div className="scrim" /><div className="sheet" /></>;
   const stock = d.stocks.find(x => x.ticker === p.ticker);
   const kick = g ? kickoffLabel(new Date(g.commence_time)) : null;
@@ -800,7 +861,16 @@ const sharePick = async (p: Pick, g: Game, say: (m: string) => void) => {
 function Picks({ d, gm, say, onEvent }: { d: ReturnType<typeof useData>; gm: Record<string, Game>; say: (m: string) => void; onEvent: (gid: string) => void }) {
   const [tab, setTab] = useState<'all' | 'upcoming' | 'live' | 'finished' | 'won' | 'missed'>('all');
   const [selId, setSelId] = useState<string | null>(null);
-  const all = d.picks.filter(p => gm[p.game_id]);
+  const [armId, setArmId] = useState<string | null>(null);
+  const all = d.picks.filter(p => gm[p.game_id] && !p.stack_id);
+  const legsOf = (s: Stack) => d.picks.filter(p => p.stack_id === s.id);
+  const stackLive = (s: Stack) => s.status === 'pending' && legsOf(s).some(p => gm[p.game_id] && isLive(p, gm[p.game_id]));
+  const cancelStack = async (s: Stack) => {
+    if (armId !== s.id) { setArmId(s.id); setTimeout(() => setArmId(null), 3000); return; }
+    const { error } = await sb.rpc('cancel_stack', { p_stack_id: s.id });
+    say(error ? error.message.replace(/^.*?: /, '') : 'Stack cancelled');
+    if (!error) d.reload();
+  };
   const lists: Record<typeof tab, Pick[]> = {
     all,
     upcoming: all.filter(p => p.status === 'pending' && !isLive(p, gm[p.game_id])),
@@ -810,6 +880,15 @@ function Picks({ d, gm, say, onEvent }: { d: ReturnType<typeof useData>; gm: Rec
     missed: all.filter(p => p.status === 'lost'),
   };
   const list = lists[tab];
+  const stackLists: Record<typeof tab, Stack[]> = {
+    all: d.stacks,
+    upcoming: d.stacks.filter(s => s.status === 'pending' && !stackLive(s)),
+    live: d.stacks.filter(stackLive),
+    finished: d.stacks.filter(s => s.status !== 'pending'),
+    won: d.stacks.filter(s => s.status === 'won' || s.status === 'flex'),
+    missed: d.stacks.filter(s => s.status === 'lost'),
+  };
+  const slist = stackLists[tab];
   const EMPTY: Record<typeof tab, string> = {
     all: 'No picks yet. Head to Home and back a side.',
     upcoming: 'Nothing locked for later. The board is full of lines.',
@@ -821,9 +900,35 @@ function Picks({ d, gm, say, onEvent }: { d: ReturnType<typeof useData>; gm: Rec
   const sel = selId ? all.find(p => p.id === selId) ?? null : null;
   return <section className="view"><h2 style={{ fontSize: 22 }}>Picks</h2>
     <div className="tabs">{([['all', 'All'], ['upcoming', 'Upcoming'], ['live', 'Live'], ['finished', 'Finished'], ['won', 'Won'], ['missed', 'Missed']] as const).map(([k, l]) =>
-      <button key={k} className={tab === k ? 'on' : ''} onClick={() => setTab(k)}>{l}{k === 'live' && lists.live.length > 0 && <span className="tbadge">{lists.live.length}</span>}</button>)}</div>
-    {!list.length ? <div className="empty"><Symbol name="ticket" size={56} /><p>{EMPTY[tab]}</p></div>
-      : list.map(p => { const g = gm[p.game_id]; const won = p.status === 'won'; const live = isLive(p, g); const { day, time } = kickoffLabel(new Date(g.commence_time));
+      <button key={k} className={tab === k ? 'on' : ''} onClick={() => setTab(k)}>{l}{k === 'live' && lists.live.length + stackLists.live.length > 0 && <span className="tbadge">{lists.live.length + stackLists.live.length}</span>}</button>)}</div>
+    {!list.length && !slist.length && <div className="empty"><Symbol name="ticket" size={56} /><p>{EMPTY[tab]}</p></div>}
+    {slist.map(s => { const lgs = legsOf(s); const won = s.status === 'won' || s.status === 'flex';
+      return <div key={s.id} className={'pick ' + (won ? 'won' : s.status === 'lost' ? 'lost' : '')}>
+        {won && <WonBand />}
+        <div className="row" style={{ alignItems: 'flex-start' }}>
+          <div style={{ minWidth: 0 }}><div className="side">{s.legs}-leg Stack</div>
+            <div className="eyebrow">{s.status === 'flex' ? 'Flexed · one leg missed' : 'every leg to hit'}</div></div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 'none' }}><span className="odds-acc" style={{ fontSize: 17 }}>{oddsTxt(s.odds)}</span>
+            {s.status === 'pending' ? <span className="res">{stackLive(s) ? 'Live' : 'Pending'}</span>
+              : s.status === 'lost' ? <span className="res l">Missed</span>
+              : s.status === 'push' ? <span className="res p">Push</span>
+              : s.status === 'flex' ? <span className="res w">Flexed</span> : null}</div>
+        </div>
+        <div className="legs">{lgs.map(p => { const g = gm[p.game_id]; return <div className="legrow" key={p.id}>
+          <div className="lx"><div className="n">{legLabel(p)}</div><div className="s">{MARKET_LABEL[p.market] ?? p.market}{g ? ` · ${g.away} at ${g.home}` : ''}</div></div>
+          <div className="o">{oddsTxt(p.odds)}</div>
+          {g && statusChip(p, isLive(p, g))}
+        </div>; })}</div>
+        <div className="se"><div><div className="l">Invested</div><div className="v">{fmt0(Number(s.stake))} <span className="tkr">{s.ticker}</span></div></div>
+          <div><div className="l">Earns</div><div className="v">{s.status === 'pending' ? `${basePoints(s.odds)} pts` : won ? `${Math.round(Number(s.points))} pts` : s.status === 'lost' ? '—' : '0 pts'}</div>
+            {s.status === 'flex' && <div className="boost"><Flame size={19} streak={3} />40% Flex · streak intact</div>}</div></div>
+        <div className={'meta ' + (s.filled_at ? 'mint' : '')} style={{ marginTop: 12 }}>{s.filled_at ? `Bought ${Number(s.shares).toFixed(4)} ${s.ticker} at ${fmt(Number(s.fill_price))}` : 'buys at the next market open'}</div>
+        <div className="pid-row">
+          <span className="pid">ID {s.id.slice(0, 8)}<button aria-label="Copy Stack ID" style={{ minHeight: 24, color: 'inherit' }} onClick={() => { navigator.clipboard?.writeText(s.id); say('Copied'); }}><Symbol name="copy" size={13} /></button></span>
+          {s.status === 'pending' && Date.parse(s.first_kick) > Date.now() && <button className="sharelink" onClick={() => cancelStack(s)}>{armId === s.id ? 'Tap again to cancel' : 'Cancel Stack'}</button>}
+        </div>
+      </div>; })}
+    {list.map(p => { const g = gm[p.game_id]; const won = p.status === 'won'; const live = isLive(p, g); const { day, time } = kickoffLabel(new Date(g.commence_time));
         const val = p.shares && d.prices[p.ticker] ? Number(p.shares) * d.prices[p.ticker] : null;
         return <div key={p.id} role="button" tabIndex={0} className={'pick tap ' + (won ? 'won' : p.status === 'lost' ? 'lost' : '')} onClick={() => setSelId(p.id)}>
           {won && <WonBand />}
@@ -1029,11 +1134,11 @@ function Owned({ d, gm, onStock }: { d: ReturnType<typeof useData>; gm: Record<s
   const [hide, setHide] = useState(() => localStorage.getItem('ib_hide') === '1');
   const toggleHide = () => { localStorage.setItem('ib_hide', hide ? '0' : '1'); setHide(!hide); };
   const mask = (s: string) => (hide ? '$••••' : s);
-  const mine = d.picks.filter(p => gm[p.game_id]);
+  const mine = moneyRows(d.picks.filter(p => gm[p.game_id]), d.stacks);
   const filled = mine.filter(p => p.filled_at && p.shares);
   const pending = mine.filter(p => !p.filled_at);
-  const value = ownedValue(mine, d.prices);
-  const staked = mine.reduce((s, p) => s + Number(p.stake), 0);
+  const value = rowValue(mine, d.prices);
+  const staked = mine.reduce((s, p) => s + p.stake, 0);
   const holdings = Object.values(filled.reduce<Record<string, { ticker: string; shares: number; cost: number }>>((acc, p) => {
     const h = acc[p.ticker] ?? (acc[p.ticker] = { ticker: p.ticker, shares: 0, cost: 0 });
     h.shares += Number(p.shares); h.cost += Number(p.stake); return acc;
@@ -1045,7 +1150,7 @@ function Owned({ d, gm, onStock }: { d: ReturnType<typeof useData>; gm: Record<s
   // Solid line: your money pick by pick, ending at today's value. Dashed: today grown at each holding's 10-yr average.
   const chrono = [...mine].sort((a, b) => a.locked_at.localeCompare(b.locked_at));
   const ownedPts = [0]; const bookPts = [0]; let oc = 0, bc = 0;
-  for (const p of chrono) { oc += Number(p.stake); bc += Number(p.stake) + counterfactualDelta(Number(p.stake), p.odds, p.status as 'won' | 'lost' | 'push' | 'void' | 'pending'); ownedPts.push(oc); bookPts.push(bc); }
+  for (const p of chrono) { oc += p.stake; bc += p.stake + counterfactualDelta(p.stake, p.odds, p.bookStatus as 'won' | 'lost' | 'push' | 'void' | 'pending'); ownedPts.push(oc); bookPts.push(bc); }
   ownedPts.push(value); bookPts.push(bc);
   const projAt = (y: number) => holdings.reduce((s, h) => s + projectSmart(h.value, h.stock?.avg_return_10y ?? 10, y), 0)
     + pending.reduce((s, p) => s + projectSmart(Number(p.stake), d.stocks.find(x => x.ticker === p.ticker)?.avg_return_10y ?? 10, y), 0);
@@ -1158,12 +1263,12 @@ function ProfileTab({ d, gm, uid, say, onBroker }: { d: ReturnType<typeof useDat
   };
   const { signOut, openUserProfile } = useClerk();
   const name = d.profile?.display_name ?? 'You';
-  const mine = d.picks.filter(p => gm[p.game_id]);
-  const value = ownedValue(mine, d.prices);
+  const mine = moneyRows(d.picks.filter(p => gm[p.game_id]), d.stacks);
+  const value = rowValue(mine, d.prices);
   const wins = mine.filter(p => p.status === 'won').length, losses = mine.filter(p => p.status === 'lost').length;
-  const monthPts = Math.round(mine.filter(p => p.counted).reduce((s, p) => s + Number(p.points), 0));
-  const invested = mine.reduce((t, p) => t + Number(p.stake), 0);
-  const book = bookValue(mine.map(p => ({ stake: Number(p.stake), odds: p.odds, status: p.status as any })));
+  const countedPts = Math.round([...d.picks.filter(p => !p.stack_id), ...d.stacks].filter(p => p.counted).reduce((s, p) => s + Number(p.points), 0));
+  const invested = mine.reduce((t, p) => t + p.stake, 0);
+  const book = bookValue(mine.map(p => ({ stake: p.stake, odds: p.odds, status: p.bookStatus as any })));
   const kept = invested - book; // what the same picks would have cost at a sportsbook so far
   return <section className="view">
     {(() => { const w = name.trim().split(/\s+/); const first = w[0] ?? 'You'; const rest = w.slice(1).join(' ');
@@ -1207,7 +1312,7 @@ function ProfileTab({ d, gm, uid, say, onBroker }: { d: ReturnType<typeof useDat
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <span className="rankshield" style={{ background: cur[2] }}><Symbol name="medal" size={22} /></span>
             <div><div className="rankname" style={{ color: cur[2] }}>{cur[0].toUpperCase()}</div>
-              <div className="small">{wins} won · {losses} missed · {monthPts} pts this month</div></div>
+              <div className="small">{wins} won · {losses} missed · {countedPts} pts this month</div></div>
           </div>
           <div style={{ textAlign: 'right' }}><div style={{ fontWeight: 800, fontSize: 22 }}>{season}</div><div className="small">season pts</div></div>
         </div>
@@ -1273,25 +1378,35 @@ function Confetti() {
 
 /* ---------- reveals ---------- */
 function Reveals({ d, gm }: { d: ReturnType<typeof useData>; gm: Record<string, Game> }) {
-  const [seen, setSeen] = useState<Set<string>>(() => new Set(JSON.parse(localStorage.getItem('ib_seen') || '[]'))); const [cur, setCur] = useState<Pick | null>(null); const [phase, setPhase] = useState<'wait' | 'show'>('wait');
-  const queue = d.picks.filter(p => p.status !== 'pending' && !seen.has(p.id) && gm[p.game_id]);
+  const [seen, setSeen] = useState<Set<string>>(() => new Set(JSON.parse(localStorage.getItem('ib_seen') || '[]')));
+  const [cur, setCur] = useState<{ p?: Pick; s?: Stack } | null>(null); const [phase, setPhase] = useState<'wait' | 'show'>('wait');
+  // legs settle one by one but reveal as their Stack, once, when the Stack itself settles
+  const queue: { p?: Pick; s?: Stack }[] = [
+    ...d.stacks.filter(s => s.status !== 'pending' && !seen.has(s.id)).map(s => ({ s })),
+    ...d.picks.filter(p => !p.stack_id && p.status !== 'pending' && !seen.has(p.id) && gm[p.game_id]).map(p => ({ p })),
+  ];
   useLockBody(!!cur);
   useEffect(() => { if (!cur && queue.length) { setCur(queue[0]); setPhase('wait'); } }, [queue.length, cur]);
   // The timer gets its own effect: keyed on the queue it was cancelled by its own state update, leaving the reveal stuck on "Final…"
   useEffect(() => { if (!cur || phase !== 'wait') return; const t = setTimeout(() => { setPhase('show'); navigator.vibrate?.([30, 40, 60]); }, 1300); return () => clearTimeout(t); }, [cur, phase]);
   if (!cur) return null;
-  const g = gm[cur.game_id]; const won = cur.status === 'won', push = cur.status === 'push' || cur.status === 'void';
-  const label = cur.market === 'prop' ? cur.selection.split('|')[0] : cur.selection + (cur.market === 'h2h' ? '' : ' ' + pt(cur.point));
-  const next = () => { const s = new Set(seen); s.add(cur.id); localStorage.setItem('ib_seen', JSON.stringify([...s])); setSeen(s); setCur(null); };
+  const x = cur.p ?? cur.s!;
+  const g = cur.p ? gm[cur.p.game_id] : null;
+  const won = x.status === 'won' || x.status === 'flex', push = x.status === 'push' || x.status === 'void', flex = x.status === 'flex';
+  const label = cur.p ? (cur.p.market === 'prop' ? cur.p.selection.split('|')[0] : cur.p.selection + (cur.p.market === 'h2h' ? '' : ' ' + pt(cur.p.point))) : `${cur.s!.legs}-leg Stack`;
+  const next = () => { const s = new Set(seen); s.add(x.id); localStorage.setItem('ib_seen', JSON.stringify([...s])); setSeen(s); setCur(null); };
   const streakNow = d.profile?.streak ?? 0;
   return <div className="reveal" onClick={() => phase === 'wait' && setPhase('show')}>
-    {phase === 'show' && won && (streakNow === 3 || streakNow === 5) && <Confetti />}
+    {phase === 'show' && won && !flex && (streakNow === 3 || streakNow === 5) && <Confetti />}
     <div className={'card2 ' + (phase === 'wait' ? 'shimmer' : 'pop ' + (won ? 'win' : ''))}>
-    {phase === 'wait' ? <><p>{g.away} at {g.home}</p><div className="big">{label}</div><p>{oddsTxt(cur.odds)} · {fmt0(Number(cur.stake))} of {cur.ticker}</p><p style={{ marginTop: 14 }}>Final…</p></>
-      : push ? <><p>{label} {oddsTxt(cur.odds)}</p><div className="big gold">Push</div><p>No points, streak intact. You still own {fmt0(Number(cur.stake))} of {cur.ticker}.</p></>
-      : won ? <><p>{label} {oddsTxt(cur.odds)}</p><div className="big mint">+{Math.round(cur.points)} pts</div>{(d.profile?.streak ?? 0) >= 3 && <p className="gold" style={{ fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}><Symbol name="flame" size={14} />{d.profile!.streak} straight · {d.profile!.streak >= 5 ? '2x' : '1.5x'} points</p>}<p>And you still own {fmt0(Number(cur.stake))} of {cur.ticker}.</p></>
-      : <><p>{label} {oddsTxt(cur.odds)}</p><div className="big" style={{ color: 'var(--muted)' }}>Missed</div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 14, textAlign: 'left' }}><div style={{ background: 'var(--coral2)', borderRadius: 12, padding: 10 }}><div className="small">A sportsbook keeps</div><div className="coral" style={{ fontWeight: 700, fontSize: 20 }}>{fmt0(Number(cur.stake))}</div></div><div style={{ background: 'var(--mint2)', borderRadius: 12, padding: 10 }}><div className="small">You still own</div><div className="mint" style={{ fontWeight: 700, fontSize: 18 }}>{fmt0(Number(cur.stake))} of {cur.ticker}</div></div></div>
+    {phase === 'wait' ? <><p>{g ? `${g.away} at ${g.home}` : 'Every leg is in'}</p><div className="big">{label}</div><p>{oddsTxt(x.odds)} · {fmt0(Number(x.stake))} of {x.ticker}</p><p style={{ marginTop: 14 }}>Final…</p></>
+      : push ? <><p>{label} {oddsTxt(x.odds)}</p><div className="big gold">Push</div><p>No points, streak intact. You still own {fmt0(Number(x.stake))} of {x.ticker}.</p></>
+      : won ? <><p>{label} {oddsTxt(x.odds)}</p><div className="big mint">+{Math.round(Number(x.points))} pts</div>
+        {flex && <p className="gold" style={{ fontWeight: 700 }}>Flex · one leg missed, 40% scored, streak intact</p>}
+        {!flex && streakNow >= 3 && <p className="gold" style={{ fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}><Symbol name="flame" size={14} />{streakNow} straight · {streakNow >= 5 ? '2x' : '1.5x'} points</p>}
+        <p>And you still own {fmt0(Number(x.stake))} of {x.ticker}.</p></>
+      : <><p>{label} {oddsTxt(x.odds)}</p><div className="big" style={{ color: 'var(--muted)' }}>Missed</div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 14, textAlign: 'left' }}><div style={{ background: 'var(--coral2)', borderRadius: 12, padding: 10 }}><div className="small">A sportsbook keeps</div><div className="coral" style={{ fontWeight: 700, fontSize: 20 }}>{fmt0(Number(x.stake))}</div></div><div style={{ background: 'var(--mint2)', borderRadius: 12, padding: 10 }}><div className="small">You still own</div><div className="mint" style={{ fontWeight: 700, fontSize: 18 }}>{fmt0(Number(x.stake))} of {x.ticker}</div></div></div>
         <p style={{ marginTop: 12 }}>Streak resets. The money didn't go anywhere.</p></>}
   </div>{phase === 'show' && <><div style={{ height: 16 }} /><button className="btn" style={{ maxWidth: 380 }} onClick={next}>{queue.length > 1 ? 'Next result' : 'Done'}</button></>}</div>;
 }

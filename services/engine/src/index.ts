@@ -2,7 +2,7 @@ import 'dotenv/config';
 import express from 'express';
 import cron from 'node-cron';
 import { createClient } from '@supabase/supabase-js';
-import { grade, scoreSequence, bestFifteen, marketOpen } from '@investibet/core';
+import { grade, gradeStack, scoreEvents, basePoints, bestFifteen, marketOpen } from '@investibet/core';
 import { SPORTS, fetchOdds, fetchEventProps, fetchParticipants, consensus } from './oddsapi.js';
 import { fetchSlate, etDay, type Slate } from './espn.js';
 import { importTeams, sameTeam } from './teams.js';
@@ -110,14 +110,21 @@ export async function ingestScores() {
 /* ---------------- simulated fills (beta: no broker, price at next open) ---------------- */
 export async function fillPending() {
   if (!marketOpen(new Date())) return 0;
-  const { data: picks } = await sb.from('picks').select('id, stake, ticker').is('filled_at', null);
-  if (!picks?.length) return 0;
+  // legs carry stake 0; their stack holds the money and fills below
+  const { data: picks } = await sb.from('picks').select('id, stake, ticker').is('filled_at', null).gt('stake', 0);
+  const { data: stacks } = await sb.from('stacks').select('id, stake, ticker').is('filled_at', null);
+  if (!picks?.length && !stacks?.length) return 0;
   const { data: prices } = await sb.from('prices').select('ticker, price');
   const px = new Map((prices ?? []).map(p => [p.ticker, Number(p.price)]));
   let n = 0;
-  for (const p of picks) {
+  for (const p of picks ?? []) {
     const price = px.get(p.ticker); if (!price) continue;
     await sb.from('picks').update({ fill_price: price, shares: Number(p.stake) / price, filled_at: new Date().toISOString() }).eq('id', p.id);
+    n++;
+  }
+  for (const s of stacks ?? []) {
+    const price = px.get(s.ticker); if (!price) continue;
+    await sb.from('stacks').update({ fill_price: price, shares: Number(s.stake) / price, filled_at: new Date().toISOString() }).eq('id', s.id);
     n++;
   }
   if (n) log('filled', n, 'simulated buys');
@@ -144,10 +151,22 @@ export async function refreshPrices() {
  *  cannot fail; it is only priced at the next market open. Games often end before that open (every weekend
  *  slate), and core's unfilled-earns-0 rule was zeroing legitimate wins. That rule returns with real orders. */
 export async function rescoreUser(uid: string) {
-  const { data: all } = await sb.from('picks').select('id, odds, status, stake, games!inner(commence_time)').eq('user_id', uid).neq('status', 'pending');
-  const seq = scoreSequence((all ?? []).map(p => ({ id: p.id, odds: p.odds, status: p.status as any, kickoff: (p as any).games.commence_time, filled: true })));
-  const counted = bestFifteen((all ?? []).map(p => ({ id: p.id, kickoff: (p as any).games.commence_time, points: seq.points[p.id] ?? 0 })));
-  for (const p of all ?? []) await sb.from('picks').update({ points: seq.points[p.id] ?? 0, counted: counted.has(p.id) }).eq('id', p.id);
+  const { data: singles } = await sb.from('picks').select('id, odds, status, games!inner(commence_time)').eq('user_id', uid).is('stack_id', null).neq('status', 'pending');
+  const { data: stacks } = await sb.from('stacks').select('id, status, picks(odds, status, games!inner(commence_time))').eq('user_id', uid).neq('status', 'pending');
+  const events = [
+    ...(singles ?? []).map(p => ({ id: p.id, kickoff: (p as any).games.commence_time as string, status: p.status as any, basePts: basePoints(p.odds) })),
+    ...(stacks ?? []).map(s => {
+      const legs = (s as any).picks as { odds: number; status: any; games: { commence_time: string } }[];
+      const g = gradeStack(legs.map(l => ({ odds: l.odds, status: l.status })));
+      const kickoff = legs.reduce((m, l) => (l.games.commence_time > m ? l.games.commence_time : m), legs[0]?.games.commence_time ?? '');
+      // a stack settled early (two misses with legs pending) regrades the same way
+      return { id: s.id, kickoff, status: (g.status === 'pending' ? (s.status as any) : g.status) as any, basePts: g.basePts };
+    }),
+  ];
+  const seq = scoreEvents(events);
+  const counted = bestFifteen(events.map(e => ({ id: e.id, kickoff: e.kickoff, points: seq.points[e.id] ?? 0 })));
+  for (const p of singles ?? []) await sb.from('picks').update({ points: seq.points[p.id] ?? 0, counted: counted.has(p.id) }).eq('id', p.id);
+  for (const s of stacks ?? []) await sb.from('stacks').update({ points: seq.points[s.id] ?? 0, counted: counted.has(s.id) }).eq('id', s.id);
   await sb.from('profiles').update({ streak: seq.streak }).eq('id', uid);
 }
 
@@ -173,7 +192,15 @@ export async function settle() {
     await sb.from('picks').update({ status, settled_at: new Date().toISOString() }).eq('id', p.id);
     users.add(p.user_id); graded++;
   }
-  // 2. recompute points, streaks, best-15 for affected users (full replay per user: cheap, and always correct)
+  // 2. grade stacks whose legs moved: a second miss settles one early, otherwise it waits for every leg
+  const { data: openStacks } = await sb.from('stacks').select('id, user_id, picks(odds, status)').eq('status', 'pending');
+  for (const s of openStacks ?? []) {
+    const gs = gradeStack(((s as any).picks ?? []).map((l: any) => ({ odds: l.odds, status: l.status })));
+    if (gs.status === 'pending') continue;
+    await sb.from('stacks').update({ status: gs.status, settled_at: new Date().toISOString() }).eq('id', s.id);
+    users.add(s.user_id); graded++;
+  }
+  // 3. recompute points, streaks, best-15 for affected users (full replay per user: cheap, and always correct)
   for (const uid of users) await rescoreUser(uid);
   await sb.from('settlement_runs').insert({ games_settled: 0, picks_settled: graded });
   if (graded) log('settled', graded, 'picks for', users.size, 'users');

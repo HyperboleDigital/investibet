@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { basePoints, streakMultiplier, grade, scoreSequence, bestFifteen, potSplit, counterfactualDelta, implied, decimalOdds, stackOdds, stackPoints, bookValue, project, projectSmart } from './index';
+import { basePoints, streakMultiplier, grade, scoreSequence, bestFifteen, potSplit, counterfactualDelta, implied, decimalOdds, stackOdds, stackPoints, bookValue, project, projectSmart, gradeStack, scoreEvents } from './index';
 
 describe('points', () => {
   it('equals the odds', () => { expect(basePoints(170)).toBe(170); expect(basePoints(-200)).toBe(50); expect(basePoints(-110)).toBe(91); });
@@ -93,5 +93,50 @@ describe('pot and counterfactual', () => {
       { stake: 20, odds: 170, status: 'pending' },
     ])).toBeCloseTo(74);
     expect(bookValue([])).toBe(0);
+  });
+});
+
+describe('gradeStack', () => {
+  const L = (odds: number, status: any) => ({ odds, status });
+  it('wins when every leg hits, at the combined odds', () =>
+    expect(gradeStack([L(100, 'won'), L(100, 'won')])).toEqual({ status: 'won', basePts: 300 }));
+  it('waits while legs are pending', () =>
+    expect(gradeStack([L(100, 'won'), L(-110, 'pending')]).status).toBe('pending'));
+  it('one miss alone keeps it pending: the rest could still flex', () =>
+    expect(gradeStack([L(100, 'lost'), L(100, 'pending')]).status).toBe('pending'));
+  it('loses early on the second miss, pending legs or not', () =>
+    expect(gradeStack([L(100, 'lost'), L(100, 'lost'), L(100, 'pending')])).toEqual({ status: 'lost', basePts: 0 }));
+  it('exactly one miss flexes at 40% of the full points', () =>
+    expect(gradeStack([L(100, 'won'), L(100, 'won'), L(100, 'lost')])).toEqual({ status: 'flex', basePts: 280 }));
+  it('pushed legs drop out and the odds recompute', () =>
+    expect(gradeStack([L(100, 'won'), L(-110, 'push')])).toEqual({ status: 'won', basePts: 100 }));
+  it('every leg pushed is a push', () =>
+    expect(gradeStack([L(100, 'push'), L(-110, 'void')])).toEqual({ status: 'push', basePts: 0 }));
+  it('a push leaving one live leg that missed is a loss, nothing to flex', () =>
+    expect(gradeStack([L(100, 'push'), L(100, 'lost')])).toEqual({ status: 'lost', basePts: 0 }));
+});
+
+describe('scoreEvents', () => {
+  const E = (id: string, kickoff: string, status: any, basePts: number) => ({ id, kickoff, status, basePts });
+  it('wins extend the streak across picks and stacks alike', () => {
+    const r = scoreEvents([E('p1', '2026-01-01', 'won', 100), E('s1', '2026-01-02', 'won', 300)]);
+    expect(r.points.p1).toBeCloseTo(100); expect(r.points.s1).toBeCloseTo(360); expect(r.streak).toBe(2);
+  });
+  it('flex keeps the streak and its multiplier without growing it', () => {
+    const r = scoreEvents([
+      E('a', '2026-01-01', 'won', 100), E('b', '2026-01-02', 'won', 100),
+      E('f', '2026-01-03', 'flex', 280), E('c', '2026-01-04', 'won', 100),
+    ]);
+    expect(r.points.f).toBeCloseTo(280 * 1.2);   // multiplier of the surviving 2-streak
+    expect(r.points.c).toBeCloseTo(100 * 1.44);  // streak resumes at 3, not 4
+    expect(r.streak).toBe(3);
+  });
+  it('a lost stack resets the streak', () => {
+    const r = scoreEvents([E('a', '2026-01-01', 'won', 100), E('x', '2026-01-02', 'lost', 0), E('b', '2026-01-03', 'won', 100)]);
+    expect(r.points.b).toBeCloseTo(100); expect(r.streak).toBe(1);
+  });
+  it('pushes and voids pass through untouched', () => {
+    const r = scoreEvents([E('a', '2026-01-01', 'won', 100), E('p', '2026-01-02', 'push', 0), E('b', '2026-01-03', 'won', 100)]);
+    expect(r.points.b).toBeCloseTo(120); expect(r.streak).toBe(2);
   });
 });
